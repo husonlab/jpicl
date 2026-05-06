@@ -1,0 +1,442 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+    PICL settings — JavaFX view.
+    All interactive controls have an fx:id so IntelliJ's
+    "Create controller class" action can generate fields and
+    @FXML handlers automatically.
+-->
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="jpicl.dialog.DialogController"
+            prefWidth="980.0" prefHeight="780.0">
+
+    <!-- ============================================================== -->
+    <!--  Top toolbar: load / save settings                             -->
+    <!-- ============================================================== -->
+    <top>
+        <VBox>
+            <HBox spacing="10.0" alignment="CENTER_LEFT">
+                <padding>
+                    <Insets top="10.0" right="16.0" bottom="10.0" left="16.0"/>
+                </padding>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="loadSettingsButton" text="Load settings…"/>
+                <Button fx:id="saveSettingsButton" text="Save settings…"/>
+            </HBox>
+            <Separator/>
+        </VBox>
+    </top>
+
+    <!-- ============================================================== -->
+    <!--  Center: TabPane with Settings + Output                        -->
+    <!-- ============================================================== -->
+    <center>
+        <TabPane fx:id="mainTabPane" tabClosingPolicy="UNAVAILABLE">
+            <tabs>
+                <Tab fx:id="settingsTab" text="Settings">
+                    <content>
+                        <ScrollPane fitToWidth="true" pannable="false">
+                            <VBox spacing="8.0">
+                                <padding>
+                                    <Insets top="12.0" right="16.0" bottom="12.0" left="16.0"/>
+                                </padding>
+
+                                <!-- ============================================== -->
+                                <!--  Input / output files                          -->
+                                <!-- ============================================== -->
+                                <GridPane hgap="10.0" vgap="6.0">
+                                    <columnConstraints>
+                                        <ColumnConstraints minWidth="120.0" prefWidth="140.0"/>
+                                        <ColumnConstraints hgrow="ALWAYS"/>
+                                        <ColumnConstraints/>
+                                    </columnConstraints>
+
+                                    <Label text="Alignment file"
+                                           GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                                    <TextField fx:id="alignmentFileTextField"
+                                               promptText="Path to the Phylip alignment, e.g. foo.phy"
+                                               GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+                                    <Button fx:id="alignmentBrowseButton" text="Browse…"
+                                            GridPane.rowIndex="0" GridPane.columnIndex="2"/>
+
+                                    <Label text="Output tree"
+                                           GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                                    <TextField fx:id="outTreeFileTextField"
+                                               promptText="Defaults to alignment-base.tre; edit to override"
+                                               GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                                    <Button fx:id="outTreeFileBrowseButton" text="Browse…"
+                                            GridPane.rowIndex="1" GridPane.columnIndex="2"/>
+
+                                    <Label text="Settings file"
+                                           GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                                    <Label fx:id="settingsPathLabel"
+                                           text="(derived from output tree)"
+                                           style="-fx-font-family: 'monospace';"
+                                           GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+                                    <Label text="Tree info file"
+                                           GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                                    <Label fx:id="treeInfoPathLabel"
+                                           text="(derived from output tree)"
+                                           style="-fx-font-family: 'monospace';"
+                                           GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+                                    <Label text="Results file"
+                                           GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+                                    <Label fx:id="resultsPathLabel"
+                                           text="(derived from alignment)"
+                                           style="-fx-font-family: 'monospace';"
+                                           GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+                                </GridPane>
+
+                                <Separator/>
+
+                                <!-- ============================================== -->
+                                <!--  Model and data                                -->
+                                <!-- ============================================== -->
+                                <TitledPane fx:id="modelAndDataTitledPane"
+                                            text="Model and data"
+                                            collapsible="true"
+                                            expanded="true">
+                                    <GridPane hgap="16.0" vgap="8.0">
+                                        <columnConstraints>
+                                            <ColumnConstraints minWidth="160.0" prefWidth="180.0"/>
+                                            <ColumnConstraints hgrow="ALWAYS"/>
+                                            <ColumnConstraints minWidth="160.0" prefWidth="180.0"/>
+                                            <ColumnConstraints hgrow="ALWAYS"/>
+                                        </columnConstraints>
+
+                                        <!-- Row 0: Model + Theta -->
+                                        <Label text="Model"
+                                               GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                                        <ChoiceBox fx:id="modelChoiceBox"
+                                                   maxWidth="Infinity"
+                                                   GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+                                        <Label text="θ (= 4Nₑμ)"
+                                               GridPane.rowIndex="0" GridPane.columnIndex="2"/>
+                                        <HBox spacing="6.0" alignment="CENTER_LEFT"
+                                              GridPane.rowIndex="0" GridPane.columnIndex="3">
+                                            <TextField fx:id="thetaTextField" prefColumnCount="10"/>
+                                            <Label fx:id="thetaHintLabel" text="fixed"/>
+                                        </HBox>
+
+                                        <!-- Row 1: Sites + Gamma rate -->
+                                        <Label text="Sites"
+                                               GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                                        <CheckBox fx:id="includeAllSitesCheckBox"
+                                                  text="Include gap-containing sites"
+                                                  GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+                                        <Label text="Gamma rate parameter"
+                                               GridPane.rowIndex="1" GridPane.columnIndex="2"/>
+                                        <HBox spacing="6.0" alignment="CENTER_LEFT"
+                                              GridPane.rowIndex="1" GridPane.columnIndex="3">
+                                            <TextField fx:id="gammaRateTextField" prefColumnCount="10"/>
+                                            <Label fx:id="gammaRateHintLabel" text="used when model = 2"/>
+                                        </HBox>
+
+                                        <!-- Row 2: Gamma categories -->
+                                        <Label text="Gamma categories"
+                                               GridPane.rowIndex="2" GridPane.columnIndex="2"/>
+                                        <HBox spacing="6.0" alignment="CENTER_LEFT"
+                                              GridPane.rowIndex="2" GridPane.columnIndex="3">
+                                            <TextField fx:id="gammaCategoriesTextField" prefColumnCount="10"/>
+                                            <Label fx:id="gammaCategoriesHintLabel" text="used when model = 2"/>
+                                        </HBox>
+                                    </GridPane>
+                                </TitledPane>
+
+                                <!-- ============================================== -->
+                                <!--  Starting tree                                 -->
+                                <!-- ============================================== -->
+                                <TitledPane fx:id="startingTreeTitledPane"
+                                            text="Starting tree"
+                                            collapsible="true"
+                                            expanded="false">
+                                    <VBox spacing="8.0">
+                                        <HBox spacing="18.0" alignment="CENTER_LEFT">
+                                            <Label text="Source" minWidth="180.0"/>
+                                            <RadioButton fx:id="readFromTreeFileRadioButton"
+                                                         text="Read from tree file">
+                                                <toggleGroup>
+                                                    <ToggleGroup fx:id="startingTreeToggleGroup"/>
+                                                </toggleGroup>
+                                            </RadioButton>
+                                            <RadioButton fx:id="generateRandomTreeRadioButton"
+                                                         text="Generate random tree"
+                                                         selected="true"
+                                                         toggleGroup="$startingTreeToggleGroup"/>
+                                        </HBox>
+
+                                        <HBox spacing="6.0" alignment="CENTER_LEFT">
+                                            <Label text="Tree file" minWidth="180.0"/>
+                                            <TextField fx:id="treeFileTextField"
+                                                       HBox.hgrow="ALWAYS"
+                                                       promptText="treefile.tre"/>
+                                            <Button fx:id="treeFileBrowseButton" text="Browse…"/>
+                                        </HBox>
+
+                                        <HBox spacing="6.0" alignment="CENTER_LEFT">
+                                            <Label text="Branch lengths" minWidth="180.0"/>
+                                            <CheckBox fx:id="useBranchLengthsFromTreeCheckBox"
+                                                      text="Use branch lengths from tree file"/>
+                                        </HBox>
+                                    </VBox>
+                                </TitledPane>
+
+                                <!-- ============================================== -->
+                                <!--  Branch length optimisation                    -->
+                                <!-- ============================================== -->
+                                <TitledPane fx:id="branchLengthOptimisationTitledPane"
+                                            text="Branch length optimisation"
+                                            collapsible="true"
+                                            expanded="false">
+                                    <VBox spacing="8.0">
+                                        <GridPane hgap="16.0" vgap="8.0">
+                                            <columnConstraints>
+                                                <ColumnConstraints minWidth="160.0" prefWidth="180.0"/>
+                                                <ColumnConstraints hgrow="ALWAYS"/>
+                                                <ColumnConstraints minWidth="160.0" prefWidth="180.0"/>
+                                                <ColumnConstraints hgrow="ALWAYS"/>
+                                            </columnConstraints>
+
+                                            <Label text="Method"
+                                                   GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                                            <ChoiceBox fx:id="branchLengthMethodChoiceBox"
+                                                       maxWidth="Infinity"
+                                                       GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+                                            <Label text="Iterations"
+                                                   GridPane.rowIndex="0" GridPane.columnIndex="2"/>
+                                            <TextField fx:id="branchLengthIterationsTextField"
+                                                       prefColumnCount="12"
+                                                       GridPane.rowIndex="0" GridPane.columnIndex="3"/>
+                                        </GridPane>
+
+                                        <Label fx:id="branchLengthOptimisationHintLabel"
+                                               text="Numerical derivatives (3) are disabled — not implemented in PICL."/>
+                                    </VBox>
+                                </TitledPane>
+
+                                <!-- ============================================== -->
+                                <!--  Tree search                                   -->
+                                <!-- ============================================== -->
+                                <TitledPane fx:id="treeSearchTitledPane"
+                                            text="Tree search"
+                                            collapsible="true"
+                                            expanded="false">
+                                    <GridPane hgap="16.0" vgap="8.0">
+                                        <columnConstraints>
+                                            <ColumnConstraints minWidth="160.0" prefWidth="180.0"/>
+                                            <ColumnConstraints hgrow="ALWAYS"/>
+                                            <ColumnConstraints minWidth="160.0" prefWidth="180.0"/>
+                                            <ColumnConstraints hgrow="ALWAYS"/>
+                                        </columnConstraints>
+
+                                        <Label text="Method"
+                                               GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                                        <ChoiceBox fx:id="treeSearchMethodChoiceBox"
+                                                   maxWidth="Infinity"
+                                                   GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+                                        <Label text="Cooling rate β"
+                                               GridPane.rowIndex="0" GridPane.columnIndex="2"/>
+                                        <HBox spacing="6.0" alignment="CENTER_LEFT"
+                                              GridPane.rowIndex="0" GridPane.columnIndex="3">
+                                            <TextField fx:id="coolingRateTextField" prefColumnCount="10"/>
+                                            <Label fx:id="coolingRateHintLabel" text="used when SA selected"/>
+                                        </HBox>
+
+                                        <Label text="Iterations"
+                                               GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                                        <TextField fx:id="treeSearchIterationsTextField"
+                                                   prefColumnCount="12"
+                                                   GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                                    </GridPane>
+                                </TitledPane>
+
+                                <!-- ============================================== -->
+                                <!--  Bootstrap, seeds, output                      -->
+                                <!-- ============================================== -->
+                                <TitledPane fx:id="bootstrapSeedsOutputTitledPane"
+                                            text="Bootstrap, seeds, output"
+                                            collapsible="true"
+                                            expanded="false">
+                                    <GridPane hgap="16.0" vgap="8.0">
+                                        <columnConstraints>
+                                            <ColumnConstraints minWidth="160.0" prefWidth="180.0"/>
+                                            <ColumnConstraints hgrow="ALWAYS"/>
+                                            <ColumnConstraints minWidth="160.0" prefWidth="180.0"/>
+                                            <ColumnConstraints hgrow="ALWAYS"/>
+                                        </columnConstraints>
+
+                                        <Label text="Bootstrap replicates"
+                                               GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                                        <HBox spacing="6.0" alignment="CENTER_LEFT"
+                                              GridPane.rowIndex="0" GridPane.columnIndex="1">
+                                            <TextField fx:id="bootstrapReplicatesTextField" prefColumnCount="10"/>
+                                            <Label fx:id="bootstrapReplicatesHintLabel" text="0 = none"/>
+                                        </HBox>
+
+                                        <Label text="Random seed 1"
+                                               GridPane.rowIndex="0" GridPane.columnIndex="2"/>
+                                        <HBox spacing="6.0" alignment="CENTER_LEFT"
+                                              GridPane.rowIndex="0" GridPane.columnIndex="3">
+                                            <TextField fx:id="randomSeed1TextField" prefColumnCount="12"/>
+                                            <Button fx:id="randomiseSeed1Button" text="Randomise"/>
+                                        </HBox>
+
+                                        <Label text="Verbose output"
+                                               GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                                        <CheckBox fx:id="verboseOutputCheckBox"
+                                                  text="Print debug detail"
+                                                  GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+                                        <Label text="Random seed 2"
+                                               GridPane.rowIndex="1" GridPane.columnIndex="2"/>
+                                        <HBox spacing="6.0" alignment="CENTER_LEFT"
+                                              GridPane.rowIndex="1" GridPane.columnIndex="3">
+                                            <TextField fx:id="randomSeed2TextField" prefColumnCount="12"/>
+                                            <Button fx:id="randomiseSeed2Button" text="Randomise"/>
+                                        </HBox>
+                                    </GridPane>
+                                </TitledPane>
+
+                                <!-- ============================================== -->
+                                <!--  Species and lineages                          -->
+                                <!-- ============================================== -->
+                                <TitledPane fx:id="speciesAndLineagesTitledPane"
+                                            text="Species and lineages"
+                                            collapsible="true"
+                                            expanded="false">
+                                    <VBox spacing="8.0">
+                                        <HBox spacing="8.0" alignment="CENTER_LEFT">
+                                            <Label fx:id="speciesCountLabel" text="0 species"/>
+                                            <Label fx:id="lineagesCountLabel" text="0 lineages"/>
+                                            <Region HBox.hgrow="ALWAYS"/>
+                                            <Button fx:id="autoDetectSpeciesByPrefixButton"
+                                                    text="Auto-detect by prefix"/>
+                                            <Button fx:id="importSpeciesMappingButton" text="Import mapping…"/>
+                                        </HBox>
+
+                                        <TableView fx:id="lineageSpeciesTableView" prefHeight="220.0">
+                                            <columns>
+                                                <TableColumn fx:id="lineageIndexColumn"
+                                                             text="#" prefWidth="50.0"/>
+                                                <TableColumn fx:id="lineageNameColumn"
+                                                             text="Lineage" prefWidth="320.0"/>
+                                                <TableColumn fx:id="speciesAssignmentColumn"
+                                                             text="Species" prefWidth="320.0"/>
+                                            </columns>
+                                        </TableView>
+                                    </VBox>
+                                </TitledPane>
+
+                            </VBox>
+                        </ScrollPane>
+                    </content>
+                </Tab>
+
+                <Tab fx:id="outputTab" text="Output">
+                    <content>
+                        <BorderPane>
+                            <top>
+                                <VBox>
+                                    <HBox spacing="8.0" alignment="CENTER_LEFT">
+                                        <padding>
+                                            <Insets top="8.0" right="12.0" bottom="8.0" left="12.0"/>
+                                        </padding>
+                                        <Label text="PICL executable"/>
+                                        <TextField fx:id="piclExecutableTextField"
+                                                   HBox.hgrow="ALWAYS"
+                                                   promptText="Path to the picl binary"/>
+                                        <Button fx:id="piclExecutableBrowseButton" text="Browse…"/>
+                                    </HBox>
+                                    <Separator/>
+                                    <HBox spacing="8.0" alignment="CENTER_LEFT">
+                                        <padding>
+                                            <Insets top="6.0" right="12.0" bottom="6.0" left="12.0"/>
+                                        </padding>
+                                        <Label fx:id="runStatusLabel" text="Idle"/>
+                                        <ProgressBar fx:id="runProgressBar"
+                                                     prefWidth="160.0"
+                                                     progress="-1.0"/>
+                                        <Region HBox.hgrow="ALWAYS"/>
+                                        <Button fx:id="clearOutputButton" text="Clear"/>
+                                        <Button fx:id="copyOutputButton" text="Copy"/>
+                                        <Button fx:id="stopRunButton" text="Stop"/>
+                                    </HBox>
+                                    <Separator/>
+                                </VBox>
+                            </top>
+                            <center>
+                                <TextArea fx:id="outputTextArea"
+                                          editable="false"
+                                          wrapText="false"
+                                          style="-fx-font-family: 'monospace';"/>
+                            </center>
+                        </BorderPane>
+                    </content>
+                </Tab>
+
+                <Tab fx:id="treeTab" text="Tree">
+                    <content>
+                        <BorderPane>
+                            <top>
+                                <VBox>
+                                    <HBox spacing="8.0" alignment="CENTER_LEFT">
+                                        <padding>
+                                            <Insets top="8.0" right="12.0" bottom="8.0" left="12.0"/>
+                                        </padding>
+                                        <Label text="Source"/>
+                                        <Label fx:id="treeFilePathLabel"
+                                               text="(no run yet)"
+                                               style="-fx-font-family: 'monospace';"/>
+                                        <Region HBox.hgrow="ALWAYS"/>
+                                        <Button fx:id="reloadTreeButton" text="Reload"/>
+                                        <Button fx:id="copyTreeButton" text="Copy"/>
+                                        <Button fx:id="saveTreeAsButton" text="Save tree as…"/>
+                                    </HBox>
+                                    <Separator/>
+                                </VBox>
+                            </top>
+                            <center>
+                                <TextArea fx:id="treeTextArea"
+                                          editable="false"
+                                          wrapText="true"
+                                          style="-fx-font-family: 'monospace';"/>
+                            </center>
+                        </BorderPane>
+                    </content>
+                </Tab>
+            </tabs>
+        </TabPane>
+    </center>
+
+    <!-- ============================================================== -->
+    <!--  Bottom action bar                                             -->
+    <!-- ============================================================== -->
+    <bottom>
+        <VBox>
+            <Separator/>
+            <HBox spacing="8.0" alignment="CENTER_LEFT">
+                <padding>
+                    <Insets top="10.0" right="16.0" bottom="10.0" left="16.0"/>
+                </padding>
+                <Label fx:id="statusLabel" text="Ready"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="cancelButton" text="Cancel"/>
+                <Button fx:id="validateButton" text="Validate"/>
+                <Button fx:id="previewSettingsButton" text="Preview settings file…"/>
+                <Button fx:id="runPiclButton" text="Run PICL" defaultButton="true"/>
+            </HBox>
+        </VBox>
+    </bottom>
+
+</BorderPane>

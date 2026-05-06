@@ -1,0 +1,3 @@
+[submodule "native/picl"]
+	path = native/picl
+	url = https://github.com/lkubatko/PICL
