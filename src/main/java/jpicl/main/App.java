@@ -33,7 +33,7 @@ public class App extends Application {
 	public void start(Stage stage) throws Exception {
 		var dialogView = new DialogView();
 		stage.setScene(new Scene(dialogView.getRoot()));
+		stage.setTitle("PICL");
 		stage.show();
-
 	}
 }
