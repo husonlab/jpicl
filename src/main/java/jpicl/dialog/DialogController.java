@@ -772,6 +772,7 @@ public class DialogController {
 		// Switch the user to the Output tab and clear previous output.
 		mainTabPane.getSelectionModel().select(outputTab);
 		outputTextArea.clear();
+
 		appendOutput("$ " + execPath
 					 + " " + settingsPath
 					 + " " + alignmentPath
