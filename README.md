@@ -1,6 +1,6 @@
 # jpicl
 
-Private Java/Maven library (HusonLab)
+Java UI for PICL
 
 ## Build
 
