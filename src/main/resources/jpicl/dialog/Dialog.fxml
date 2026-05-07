@@ -47,7 +47,7 @@
                                 </padding>
 
                                 <!-- ============================================== -->
-                                <!--  Input / output files                          -->
+                                <!--  Input / output files (editable)               -->
                                 <!-- ============================================== -->
                                 <GridPane hgap="10.0" vgap="6.0">
                                     <columnConstraints>
@@ -71,28 +71,50 @@
                                                GridPane.rowIndex="1" GridPane.columnIndex="1"/>
                                     <Button fx:id="outTreeFileBrowseButton" text="Browse…"
                                             GridPane.rowIndex="1" GridPane.columnIndex="2"/>
-
-                                    <Label text="Settings file"
-                                           GridPane.rowIndex="2" GridPane.columnIndex="0"/>
-                                    <Label fx:id="settingsPathLabel"
-                                           text="(derived from output tree)"
-                                           style="-fx-font-family: 'monospace';"
-                                           GridPane.rowIndex="2" GridPane.columnIndex="1"/>
-
-                                    <Label text="Tree info file"
-                                           GridPane.rowIndex="3" GridPane.columnIndex="0"/>
-                                    <Label fx:id="treeInfoPathLabel"
-                                           text="(derived from output tree)"
-                                           style="-fx-font-family: 'monospace';"
-                                           GridPane.rowIndex="3" GridPane.columnIndex="1"/>
-
-                                    <Label text="Results file"
-                                           GridPane.rowIndex="4" GridPane.columnIndex="0"/>
-                                    <Label fx:id="resultsPathLabel"
-                                           text="(derived from alignment)"
-                                           style="-fx-font-family: 'monospace';"
-                                           GridPane.rowIndex="4" GridPane.columnIndex="1"/>
                                 </GridPane>
+
+                                <!-- ============================================== -->
+                                <!--  Auto-derived file paths (collapsed by default) -->
+                                <!-- ============================================== -->
+                                <TitledPane fx:id="moreFilesTitledPane"
+                                            text="More files"
+                                            collapsible="true"
+                                            expanded="false">
+                                    <GridPane hgap="10.0" vgap="6.0">
+                                        <columnConstraints>
+                                            <ColumnConstraints minWidth="120.0" prefWidth="140.0"/>
+                                            <ColumnConstraints hgrow="ALWAYS"/>
+                                        </columnConstraints>
+
+                                        <Label text="Settings file"
+                                               GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                                        <Label fx:id="settingsPathLabel"
+                                               text="(derived from output tree)"
+                                               style="-fx-font-family: 'monospace';"
+                                               GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+                                        <Label text="Tree info file"
+                                               GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                                        <Label fx:id="treeInfoPathLabel"
+                                               text="(derived from output tree)"
+                                               style="-fx-font-family: 'monospace';"
+                                               GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+                                        <Label text="Values file"
+                                               GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                                        <Label fx:id="valuesPathLabel"
+                                               text="(derived from alignment)"
+                                               style="-fx-font-family: 'monospace';"
+                                               GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+                                        <Label text="Log file"
+                                               GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                                        <Label fx:id="logPathLabel"
+                                               text="(derived from output tree)"
+                                               style="-fx-font-family: 'monospace';"
+                                               GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+                                    </GridPane>
+                                </TitledPane>
 
                                 <Separator/>
 
@@ -343,7 +365,7 @@
                     </content>
                 </Tab>
 
-                <Tab fx:id="outputTab" text="Output">
+                <Tab fx:id="outputTab" text="Log">
                     <content>
                         <BorderPane>
                             <top>
@@ -385,7 +407,7 @@
                     </content>
                 </Tab>
 
-                <Tab fx:id="treeTab" text="Tree">
+                <Tab fx:id="treeTab" text="Trees">
                     <content>
                         <BorderPane>
                             <top>

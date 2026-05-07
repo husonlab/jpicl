@@ -16,10 +16,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,11 +43,19 @@ public class DialogController {
 	@FXML
 	private Button autoDetectSpeciesByPrefixButton;
 	@FXML
+	private Label bootstrapReplicatesHintLabel;
+	@FXML
 	private TextField bootstrapReplicatesTextField;
+	@FXML
+	private TitledPane bootstrapSeedsOutputTitledPane;
 	@FXML
 	private TextField branchLengthIterationsTextField;
 	@FXML
 	private ChoiceBox<Settings.BranchLengthMethod> branchLengthMethodChoiceBox;
+	@FXML
+	private Label branchLengthOptimisationHintLabel;
+	@FXML
+	private TitledPane branchLengthOptimisationTitledPane;
 	@FXML
 	private Button cancelButton;
 	@FXML
@@ -82,6 +87,8 @@ public class DialogController {
 	@FXML
 	private Button loadSettingsButton;
 	@FXML
+	private TitledPane modelAndDataTitledPane;
+	@FXML
 	private ChoiceBox<Settings.Model> modelChoiceBox;
 	@FXML
 	private Button previewSettingsButton;
@@ -100,11 +107,19 @@ public class DialogController {
 	@FXML
 	private Button saveSettingsButton;
 	@FXML
+	private TitledPane speciesAndLineagesTitledPane;
+	@FXML
 	private TableColumn<Settings.LineageAssignment, String> speciesAssignmentColumn;
 	@FXML
 	private Label speciesCountLabel;
 	@FXML
+	private TitledPane startingTreeTitledPane;
+	@FXML
+	private ToggleGroup startingTreeToggleGroup;
+	@FXML
 	private Label statusLabel;
+	@FXML
+	private Label thetaHintLabel;
 	@FXML
 	private TextField thetaTextField;
 	@FXML
@@ -115,6 +130,8 @@ public class DialogController {
 	private TextField treeSearchIterationsTextField;
 	@FXML
 	private ChoiceBox<Settings.TreeSearchMethod> treeSearchMethodChoiceBox;
+	@FXML
+	private TitledPane treeSearchTitledPane;
 	@FXML
 	private CheckBox useBranchLengthsFromTreeCheckBox;
 	@FXML
@@ -128,11 +145,15 @@ public class DialogController {
 	@FXML
 	private Button outTreeFileBrowseButton;
 	@FXML
+	private TitledPane moreFilesTitledPane;
+	@FXML
 	private Label settingsPathLabel;
 	@FXML
 	private Label treeInfoPathLabel;
 	@FXML
-	private Label resultsPathLabel;
+	private Label valuesPathLabel;
+	@FXML
+	private Label logPathLabel;
 
 	// Output tab
 	@FXML
@@ -184,40 +205,38 @@ public class DialogController {
 	 * True while a PICL process is running. Drives Run/Stop button enable state.
 	 */
 	private final SimpleBooleanProperty running = new SimpleBooleanProperty(false);
-	/**
-	 * The currently running process, or null.
-	 */
+	/** The currently running process, or null. */
 	private Process currentProcess;
 
-	/**
-	 * Default location of the PICL binary, relative to the JVM's working dir.
-	 */
+	/** Default location of the PICL binary, relative to the JVM's working dir. */
 	private static final Path DEFAULT_PICL_EXECUTABLE =
 			Paths.get(System.getProperty("user.dir"), "native", "picl", "src", "picl");
 
-	/**
-	 * Default extension for the output tree (replaces the alignment extension).
-	 */
+	/** Default extension for the output tree (replaces the alignment extension). */
 	private static final String TREE_EXTENSION = ".tre";
 
-	/**
-	 * Default extension for the settings file (replaces the output tree extension).
-	 */
+	/** Default extension for the settings file (replaces the output tree extension). */
 	private static final String SETTINGS_EXTENSION = ".settings";
 
-	/**
-	 * Default extension for the tree-info file (renamed PICL "outtree.tre").
-	 */
+	/** Default extension for the tree-info file (renamed PICL "outtree.tre"). */
 	private static final String TREEINFO_EXTENSION = ".treeinfo";
 
 	/**
-	 * Default extension for the results file (uses the alignment basename).
+	 * Default extension for the values file (uses the alignment basename).
 	 */
-	private static final String RESULTS_EXTENSION = ".results";
+	private static final String VALUES_EXTENSION = ".values";
 
 	/**
-	 * Last tree file path loaded into the Tree tab (null if none).
+	 * Default extension for the log file (sibling of the output tree).
 	 */
+	private static final String LOG_EXTENSION = ".log";
+
+	/**
+	 * Writer to the per-run log file; null when no run is in flight.
+	 */
+	private BufferedWriter logFileWriter;
+
+	/** Last tree file path loaded into the Tree tab (null if none). */
 	private Path lastTreeFile;
 
 	/**
@@ -227,14 +246,10 @@ public class DialogController {
 	 */
 	private String lastAutoDerivedOutputTree = "";
 
-	/**
-	 * Output-tree path passed to picl in the most recent run; null if no run yet.
-	 */
-	private Path pendingOutTreePath;
+	/** Tree-info path written by picl in the most recent run; null if no run yet. */
+	private Path pendingTreeInfoPath;
 
-	public Settings getSettings() {
-		return settings;
-	}
+	public Settings getSettings() { return settings; }
 
 	// =================================================================
 	//  Initialisation — called by FXMLLoader after fields are injected
@@ -261,7 +276,7 @@ public class DialogController {
 	private void configureFilesSection() {
 		// When the alignment changes, re-derive the output tree path —
 		// but only if the user hasn't customized it (i.e. it still matches
-		// whatever we last auto-derived). Also refresh the Results label.
+		// whatever we last auto-derived). Also refresh the Values label.
 		alignmentFileTextField.textProperty().addListener((obs, oldVal, newVal) -> {
 			var derived = deriveOutputTreePath(newVal);
 			var current = outTreeFileTextField.getText();
@@ -270,19 +285,18 @@ public class DialogController {
 				outTreeFileTextField.setText(derived);
 			}
 			lastAutoDerivedOutputTree = derived;
-			resultsPathLabel.setText(deriveResultsPath(newVal));
+			valuesPathLabel.setText(deriveValuesPath(newVal));
 		});
 
-		// Settings + treeinfo labels always track the output-tree path live.
+		// Settings + treeinfo + log labels all track the output-tree path live.
 		outTreeFileTextField.textProperty().addListener((obs, oldVal, newVal) -> {
 			settingsPathLabel.setText(deriveSettingsPath(newVal));
 			treeInfoPathLabel.setText(deriveTreeInfoPath(newVal));
+			logPathLabel.setText(deriveLogPath(newVal));
 		});
 	}
 
-	/**
-	 * alignment "/path/foo.phy" → "/path/foo.tre". Empty input → empty result.
-	 */
+	/** alignment "/path/foo.phy" → "/path/foo.tre". Empty input → empty result. */
 	private static String deriveOutputTreePath(String alignmentPath) {
 		if (alignmentPath == null || alignmentPath.isBlank()) return "";
 		var p = Paths.get(alignmentPath);
@@ -290,30 +304,31 @@ public class DialogController {
 				.toString();
 	}
 
-	/**
-	 * outputTree "/path/foo.tre" → "/path/foo.settings". Empty input → "(none)".
-	 */
+	/** outputTree "/path/foo.tre" → "/path/foo.settings". Empty input → "(none)". */
 	private static String deriveSettingsPath(String outputTreePath) {
 		return deriveSiblingPath(outputTreePath, SETTINGS_EXTENSION);
 	}
 
-	/**
-	 * outputTree "/path/foo.tre" → "/path/foo.treeinfo". Empty input → "(none)".
-	 */
+	/** outputTree "/path/foo.tre" → "/path/foo.treeinfo". Empty input → "(none)". */
 	private static String deriveTreeInfoPath(String outputTreePath) {
 		return deriveSiblingPath(outputTreePath, TREEINFO_EXTENSION);
 	}
 
 	/**
-	 * alignment "/path/foo.phy" → "/path/foo.results". Empty input → "(none)".
+	 * alignment "/path/foo.phy" → "/path/foo.values". Empty input → "(none)".
 	 */
-	private static String deriveResultsPath(String alignmentPath) {
-		return deriveSiblingPath(alignmentPath, RESULTS_EXTENSION);
+	private static String deriveValuesPath(String alignmentPath) {
+		return deriveSiblingPath(alignmentPath, VALUES_EXTENSION);
 	}
 
 	/**
-	 * Replaces the extension on a path, or returns "(none)" for blank input.
+	 * outputTree "/path/foo.tre" → "/path/foo.log". Empty input → "(none)".
 	 */
+	private static String deriveLogPath(String outputTreePath) {
+		return deriveSiblingPath(outputTreePath, LOG_EXTENSION);
+	}
+
+	/** Replaces the extension on a path, or returns "(none)" for blank input. */
 	private static String deriveSiblingPath(String filePath, String newExtension) {
 		if (filePath == null || filePath.isBlank()) return "(none)";
 		var p = Paths.get(filePath);
@@ -321,17 +336,13 @@ public class DialogController {
 				.toString();
 	}
 
-	/**
-	 * "foo.phy" → "foo"; "foo" → "foo"; ".bashrc" → ".bashrc".
-	 */
+	/** "foo.phy" → "foo"; "foo" → "foo"; ".bashrc" → ".bashrc". */
 	private static String stripExtension(String filename) {
 		int dot = filename.lastIndexOf('.');
 		return (dot <= 0) ? filename : filename.substring(0, dot);
 	}
 
-	/**
-	 * Sets defaults and bindings for controls in the Output tab.
-	 */
+	/** Sets defaults and bindings for controls in the Output tab. */
 	private void configureOutputTab() {
 		piclExecutableTextField.setText(DEFAULT_PICL_EXECUTABLE.toString());
 
@@ -511,9 +522,7 @@ public class DialogController {
 	//  UI ⇄ Settings synchronisation
 	// =================================================================
 
-	/**
-	 * Push values from a Settings instance into the UI.
-	 */
+	/** Push values from a Settings instance into the UI. */
 	public void applyToUi(Settings s) {
 		modelChoiceBox.setValue(s.getModel());
 		alignmentFileTextField.setText(s.getAlignmentFile());
@@ -548,9 +557,7 @@ public class DialogController {
 		updateCountLabels();
 	}
 
-	/**
-	 * Read the UI back into the given Settings instance.
-	 */
+	/** Read the UI back into the given Settings instance. */
 	public void pullFromUi(Settings s) {
 		s.setModel(modelChoiceBox.getValue());
 		s.setAlignmentFile(alignmentFileTextField.getText());
@@ -741,7 +748,8 @@ public class DialogController {
 		// Auto-derived siblings.
 		var settingsPath = Paths.get(deriveSettingsPath(picltreesPath.toString()));
 		var treeInfoPath = Paths.get(deriveTreeInfoPath(picltreesPath.toString()));
-		var resultsPath = Paths.get(deriveResultsPath(alignmentPath.toString()));
+		var valuesPath = Paths.get(deriveValuesPath(alignmentPath.toString()));
+		var logPath      = Paths.get(deriveLogPath(picltreesPath.toString()));
 
 		// Starting tree file — only consulted by PICL when Random_tree=0.
 		// Pass the user's text-field value (resolved); falls back to a
@@ -769,9 +777,19 @@ public class DialogController {
 				? alignmentPath.getParent().toFile()
 				: new File(System.getProperty("user.dir"));
 
-		// Switch the user to the Output tab and clear previous output.
+		// Switch the user to the Log tab and clear previous output.
 		mainTabPane.getSelectionModel().select(outputTab);
 		outputTextArea.clear();
+
+		// Open the log file before any appendOutput call so the header
+		// and command line make it into the .log file too.
+		try {
+			logFileWriter = Files.newBufferedWriter(logPath);
+		} catch (IOException ex) {
+			logFileWriter = null;
+			statusLabel.setText("Could not open log file: " + ex.getMessage());
+			// Continue without logging to disk — the Log tab still shows output.
+		}
 
 		appendOutput("$ " + execPath
 					 + " " + settingsPath
@@ -779,16 +797,17 @@ public class DialogController {
 					 + " " + treeFilePath
 					 + " " + treeInfoPath
 					 + " " + picltreesPath
-					 + " " + resultsPath + "\n");
-		appendOutput("(working directory: " + workDir + ")\n\n");
+					 + " " + valuesPath + "\n");
+		appendOutput("(working directory: " + workDir + ")\n");
+		appendOutput("(log file:          " + logPath + ")\n\n");
 
 		// The C side accepts up to 6 positional args:
 		//   argv[1] = settings
 		//   argv[2] = data.phy (alignment)
 		//   argv[3] = treefile.tre (input starting tree, if Random_tree=0)
-		//   argv[4] = outtree.tre
+		//   argv[4] = outtree.tre (renamed to <output>.treeinfo)
 		//   argv[5] = picltrees.tre (the user's Output tree — Newick only)
-		//   argv[6] = results
+		//   argv[6] = values (PICL's "results" arg slot)
 		var pb = new ProcessBuilder(
 				execPath.toString(),
 				settingsPath.toString(),
@@ -796,13 +815,14 @@ public class DialogController {
 				treeFilePath.toString(),
 				treeInfoPath.toString(),
 				picltreesPath.toString(),
-				resultsPath.toString())
+				valuesPath.toString())
 				.directory(workDir)
 				.redirectErrorStream(true);
 
-		// Remember the picltrees path so onProcessExited can read it
-		// back into the Tree tab (this is the Newick-only file).
-		this.pendingOutTreePath = picltreesPath;
+		// Remember the .treeinfo path so onProcessExited can load it into
+		// the Trees tab — that file contains the trees PICL wrote (in
+		// mutation and coalescent units), with section headers.
+		this.pendingTreeInfoPath = treeInfoPath;
 		try {
 			currentProcess = pb.start();
 		} catch (IOException ex) {
@@ -852,13 +872,23 @@ public class DialogController {
 		running.set(false);
 		if (currentProcess == process) currentProcess = null;
 		appendOutput("\n[picl exited with code " + exitCode + "]\n");
+
+		// Flush + close the log file. Any subsequent appendOutput calls
+		// (e.g. status updates) will only hit the on-screen TextArea.
+		if (logFileWriter != null) {
+			try {
+				logFileWriter.close(); } catch (IOException ignored) {}
+			logFileWriter = null;
+		}
+
 		if (exitCode == 0) {
 			runStatusLabel.setText("Finished");
 			statusLabel.setText("PICL finished successfully");
 
-			// Read back the tree from wherever we asked picl to write it.
-			if (pendingOutTreePath != null
-				&& loadTreeFromFile(pendingOutTreePath)) {
+			// Read back the .treeinfo file PICL wrote (trees + section
+			// headers in mutation and coalescent units).
+			if (pendingTreeInfoPath != null
+				&& loadTreeFromFile(pendingTreeInfoPath)) {
 				mainTabPane.getSelectionModel().select(treeTab);
 			}
 		} else {
@@ -898,9 +928,7 @@ public class DialogController {
 		// Give it a moment, then force.
 		new Thread(() -> {
 			try {
-				p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
-			} catch (InterruptedException ignored) {
-			}
+				p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
 			if (p.isAlive()) p.destroyForcibly();
 		}, "picl-stop").start();
 	}
@@ -940,7 +968,12 @@ public class DialogController {
 
 	private void onSaveTreeAs(ActionEvent e) {
 		var chooser = new FileChooser();
-		chooser.setTitle("Save tree as");
+		chooser.setTitle("Save trees as");
+		// The Trees tab shows the .treeinfo file (annotated, multi-tree),
+		// so default to that extension. Plain Newick is offered as a
+		// secondary option in case the user pasted in pure Newick.
+		chooser.getExtensionFilters().add(
+				new FileChooser.ExtensionFilter("Tree info", "*.treeinfo"));
 		chooser.getExtensionFilters().add(
 				new FileChooser.ExtensionFilter("Newick tree", "*.tre", "*.tree", "*.nwk", "*.newick"));
 		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All files", "*"));
@@ -948,23 +981,38 @@ public class DialogController {
 			chooser.setInitialDirectory(lastTreeFile.getParent().toFile());
 			chooser.setInitialFileName(lastTreeFile.getFileName().toString());
 		} else {
-			chooser.setInitialFileName("output.tre");
+			chooser.setInitialFileName("output.treeinfo");
 		}
 		var file = chooser.showSaveDialog(window());
 		if (file == null) return;
 		try {
 			Files.writeString(file.toPath(), treeTextArea.getText());
-			statusLabel.setText("Tree saved to " + file.getName());
+			statusLabel.setText("Saved to " + file.getName());
 		} catch (IOException ex) {
-			error("Could not save tree", ex);
+			error("Could not save", ex);
 		}
 	}
 
 	/**
-	 * Append text on the FX thread (caller is responsible for thread context).
+	 * Append text on the FX thread to both the Log tab and the on-disk
+	 * .log file (when one is open). Caller is responsible for thread context.
 	 */
 	private void appendOutput(String text) {
 		outputTextArea.appendText(text);
+		if (logFileWriter != null) {
+			try {
+				logFileWriter.write(text);
+				logFileWriter.flush();   // keep the file readable in real time
+			} catch (IOException ex) {
+				// Don't tear down the run; just stop logging and surface a status.
+				try {
+					logFileWriter.close();
+				} catch (IOException ignored) {
+				}
+				logFileWriter = null;
+				statusLabel.setText("Log file write failed: " + ex.getMessage());
+			}
+		}
 	}
 
 	private void onAutoDetectSpeciesByPrefix(ActionEvent e) {
@@ -973,7 +1021,7 @@ public class DialogController {
 			var name = la.getLineage();
 			if (name == null) continue;
 			int dot = name.indexOf('.');
-			int us = name.indexOf('_');
+			int us  = name.indexOf('_');
 			int cut = (dot >= 0 && (us < 0 || dot < us)) ? dot : us;
 			if (cut > 0) {
 				var sp = name.substring(0, cut);
@@ -1016,9 +1064,7 @@ public class DialogController {
 	//  Small helpers
 	// =================================================================
 
-	private long nextSeed() {
-		return random.nextInt(Integer.MAX_VALUE);
-	}
+	private long nextSeed() { return random.nextInt(Integer.MAX_VALUE); }
 
 	private javafx.stage.Window window() {
 		return cancelButton == null ? null : cancelButton.getScene().getWindow();
@@ -1026,26 +1072,19 @@ public class DialogController {
 
 	private static double parseDouble(TextField tf, double dflt) {
 		try {
-			return Double.parseDouble(tf.getText().trim());
-		} catch (Exception ex) {
-			return dflt;
+			return Double.parseDouble(tf.getText().trim()); } catch (Exception ex) { return dflt;
 		}
 	}
 
 	private static int parseInt(TextField tf, int dflt) {
 		try {
-			return Integer.parseInt(tf.getText().trim());
-		} catch (Exception ex) {
-			return dflt;
+			return Integer.parseInt(tf.getText().trim()); } catch (Exception ex) { return dflt;
 		}
 	}
 
 	private static long parseLong(TextField tf, long dflt) {
 		try {
-			return Long.parseLong(tf.getText().trim());
-		} catch (Exception ex) {
-			return dflt;
-		}
+			return Long.parseLong(tf.getText().trim()); } catch (Exception ex) { return dflt; }
 	}
 
 	private void error(String header, Throwable t) {

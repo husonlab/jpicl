@@ -22,8 +22,11 @@ package jpicl.main;
 
 import javafx.application.Application;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 import jpicl.dialog.DialogView;
+
+import java.util.Objects;
 
 /**
  * run the app
@@ -33,6 +36,7 @@ public class App extends Application {
 	public void start(Stage stage) throws Exception {
 		var dialogView = new DialogView();
 		stage.setScene(new Scene(dialogView.getRoot()));
+		stage.getIcons().add(new Image(Objects.requireNonNull(getClass().getResourceAsStream("PICL-512.png"))));
 		stage.setTitle("PICL");
 		stage.show();
 	}
