@@ -95,7 +95,7 @@
 
                                         <Label text="Tree info file"
                                                GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-                                        <Label fx:id="treeInfoPathLabel"
+                                        <Label fx:id="treesPathLabel"
                                                text="(derived from output tree)"
                                                style="-fx-font-family: 'monospace';"
                                                GridPane.rowIndex="1" GridPane.columnIndex="1"/>
@@ -113,6 +113,13 @@
                                                text="(derived from output tree)"
                                                style="-fx-font-family: 'monospace';"
                                                GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+                                        <Label text="Bootstrap file"
+                                               GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+                                        <Label fx:id="bootstrapPathLabel"
+                                               text="(derived from output tree)"
+                                               style="-fx-font-family: 'monospace';"
+                                               GridPane.rowIndex="4" GridPane.columnIndex="1"/>
                                     </GridPane>
                                 </TitledPane>
 
@@ -417,13 +424,13 @@
                                             <Insets top="8.0" right="12.0" bottom="8.0" left="12.0"/>
                                         </padding>
                                         <Label text="Source"/>
-                                        <Label fx:id="treeFilePathLabel"
+                                        <Label fx:id="treesFilePathLabel"
                                                text="(no run yet)"
                                                style="-fx-font-family: 'monospace';"/>
                                         <Region HBox.hgrow="ALWAYS"/>
                                         <Button fx:id="reloadTreeButton" text="Reload"/>
                                         <Button fx:id="copyTreeButton" text="Copy"/>
-                                        <Button fx:id="saveTreeAsButton" text="Save tree as…"/>
+                                        <Button fx:id="saveTreeAsButton" text="Save trees as…"/>
                                     </HBox>
                                     <Separator/>
                                 </VBox>

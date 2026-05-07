@@ -149,11 +149,13 @@ public class DialogController {
 	@FXML
 	private Label settingsPathLabel;
 	@FXML
-	private Label treeInfoPathLabel;
+	private Label treesPathLabel;
 	@FXML
 	private Label valuesPathLabel;
 	@FXML
 	private Label logPathLabel;
+	@FXML
+	private Label bootstrapPathLabel;
 
 	// Output tab
 	@FXML
@@ -183,7 +185,7 @@ public class DialogController {
 	@FXML
 	private Tab treeTab;
 	@FXML
-	private Label treeFilePathLabel;
+	private Label treesFilePathLabel;
 	@FXML
 	private Button reloadTreeButton;
 	@FXML
@@ -219,21 +221,20 @@ public class DialogController {
 	private static final String SETTINGS_EXTENSION = ".settings";
 
 	/** Default extension for the tree-info file (renamed PICL "outtree.tre"). */
-	private static final String TREEINFO_EXTENSION = ".treeinfo";
+	private static final String TREEINFO_EXTENSION = ".trees";
 
-	/**
-	 * Default extension for the values file (uses the alignment basename).
-	 */
+	/** Default extension for the values file (uses the alignment basename). */
 	private static final String VALUES_EXTENSION = ".values";
 
-	/**
-	 * Default extension for the log file (sibling of the output tree).
-	 */
+	/** Default extension for the log file (sibling of the output tree). */
 	private static final String LOG_EXTENSION = ".log";
 
 	/**
-	 * Writer to the per-run log file; null when no run is in flight.
+	 * Default extension for the bootstrap file (sibling of the output tree).
 	 */
+	private static final String BOOTSTRAP_EXTENSION = ".bootstrap";
+
+	/** Writer to the per-run log file; null when no run is in flight. */
 	private BufferedWriter logFileWriter;
 
 	/** Last tree file path loaded into the Tree tab (null if none). */
@@ -288,11 +289,13 @@ public class DialogController {
 			valuesPathLabel.setText(deriveValuesPath(newVal));
 		});
 
-		// Settings + treeinfo + log labels all track the output-tree path live.
+		// Settings, trees, log, and bootstrap labels all track the
+		// output-tree path live.
 		outTreeFileTextField.textProperty().addListener((obs, oldVal, newVal) -> {
 			settingsPathLabel.setText(deriveSettingsPath(newVal));
-			treeInfoPathLabel.setText(deriveTreeInfoPath(newVal));
+			treesPathLabel.setText(deriveTreeInfoPath(newVal));
 			logPathLabel.setText(deriveLogPath(newVal));
+			bootstrapPathLabel.setText(deriveBootstrapPath(newVal));
 		});
 	}
 
@@ -309,23 +312,26 @@ public class DialogController {
 		return deriveSiblingPath(outputTreePath, SETTINGS_EXTENSION);
 	}
 
-	/** outputTree "/path/foo.tre" → "/path/foo.treeinfo". Empty input → "(none)". */
+	/** outputTree "/path/foo.tre" → "/path/foo.trees". Empty input → "(none)". */
 	private static String deriveTreeInfoPath(String outputTreePath) {
 		return deriveSiblingPath(outputTreePath, TREEINFO_EXTENSION);
 	}
 
-	/**
-	 * alignment "/path/foo.phy" → "/path/foo.values". Empty input → "(none)".
-	 */
+	/** alignment "/path/foo.phy" → "/path/foo.values". Empty input → "(none)". */
 	private static String deriveValuesPath(String alignmentPath) {
 		return deriveSiblingPath(alignmentPath, VALUES_EXTENSION);
 	}
 
-	/**
-	 * outputTree "/path/foo.tre" → "/path/foo.log". Empty input → "(none)".
-	 */
+	/** outputTree "/path/foo.tre" → "/path/foo.log". Empty input → "(none)". */
 	private static String deriveLogPath(String outputTreePath) {
 		return deriveSiblingPath(outputTreePath, LOG_EXTENSION);
+	}
+
+	/**
+	 * outputTree "/path/foo.tre" → "/path/foo.bootstrap". Empty input → "(none)".
+	 */
+	private static String deriveBootstrapPath(String outputTreePath) {
+		return deriveSiblingPath(outputTreePath, BOOTSTRAP_EXTENSION);
 	}
 
 	/** Replaces the extension on a path, or returns "(none)" for blank input. */
@@ -747,9 +753,10 @@ public class DialogController {
 
 		// Auto-derived siblings.
 		var settingsPath = Paths.get(deriveSettingsPath(picltreesPath.toString()));
-		var treeInfoPath = Paths.get(deriveTreeInfoPath(picltreesPath.toString()));
+		var treesPath = Paths.get(deriveTreeInfoPath(picltreesPath.toString()));
 		var valuesPath = Paths.get(deriveValuesPath(alignmentPath.toString()));
-		var logPath      = Paths.get(deriveLogPath(picltreesPath.toString()));
+		var logPath = Paths.get(deriveLogPath(picltreesPath.toString()));
+		var bootstrapPath = Paths.get(deriveBootstrapPath(picltreesPath.toString()));
 
 		// Starting tree file — only consulted by PICL when Random_tree=0.
 		// Pass the user's text-field value (resolved); falls back to a
@@ -795,34 +802,37 @@ public class DialogController {
 					 + " " + settingsPath
 					 + " " + alignmentPath
 					 + " " + treeFilePath
-					 + " " + treeInfoPath
+					 + " " + treesPath
 					 + " " + picltreesPath
-					 + " " + valuesPath + "\n");
+					 + " " + valuesPath
+					 + " " + bootstrapPath + "\n");
 		appendOutput("(working directory: " + workDir + ")\n");
 		appendOutput("(log file:          " + logPath + ")\n\n");
 
-		// The C side accepts up to 6 positional args:
+		// The C side accepts up to 7 positional args:
 		//   argv[1] = settings
 		//   argv[2] = data.phy (alignment)
 		//   argv[3] = treefile.tre (input starting tree, if Random_tree=0)
-		//   argv[4] = outtree.tre (renamed to <output>.treeinfo)
+		//   argv[4] = outtree.tre (renamed to <output>.trees)
 		//   argv[5] = picltrees.tre (the user's Output tree — Newick only)
 		//   argv[6] = values (PICL's "results" arg slot)
+		//   argv[7] = bootstrap (<output-base>.bootstrap)
 		var pb = new ProcessBuilder(
 				execPath.toString(),
 				settingsPath.toString(),
 				alignmentPath.toString(),
 				treeFilePath.toString(),
-				treeInfoPath.toString(),
+				treesPath.toString(),
 				picltreesPath.toString(),
-				valuesPath.toString())
+				valuesPath.toString(),
+				bootstrapPath.toString())
 				.directory(workDir)
 				.redirectErrorStream(true);
 
-		// Remember the .treeinfo path so onProcessExited can load it into
+		// Remember the .trees path so onProcessExited can load it into
 		// the Trees tab — that file contains the trees PICL wrote (in
 		// mutation and coalescent units), with section headers.
-		this.pendingTreeInfoPath = treeInfoPath;
+		this.pendingTreeInfoPath = treesPath;
 		try {
 			currentProcess = pb.start();
 		} catch (IOException ex) {
@@ -885,7 +895,7 @@ public class DialogController {
 			runStatusLabel.setText("Finished");
 			statusLabel.setText("PICL finished successfully");
 
-			// Read back the .treeinfo file PICL wrote (trees + section
+			// Read back the .trees file PICL wrote (trees + section
 			// headers in mutation and coalescent units).
 			if (pendingTreeInfoPath != null
 				&& loadTreeFromFile(pendingTreeInfoPath)) {
@@ -904,17 +914,17 @@ public class DialogController {
 	 */
 	private boolean loadTreeFromFile(Path treeFile) {
 		if (!Files.isReadable(treeFile)) {
-			treeFilePathLabel.setText(treeFile + "  (not found)");
+			treesFilePathLabel.setText(treeFile + "  (not found)");
 			return false;
 		}
 		try {
 			var content = Files.readString(treeFile);
 			treeTextArea.setText(content);
-			treeFilePathLabel.setText(treeFile.toString());
+			treesFilePathLabel.setText(treeFile.toString());
 			lastTreeFile = treeFile;
 			return true;
 		} catch (IOException ex) {
-			treeFilePathLabel.setText(treeFile + "  (error)");
+			treesFilePathLabel.setText(treeFile + "  (error)");
 			statusLabel.setText("Could not read " + treeFile.getFileName() + ": " + ex.getMessage());
 			return false;
 		}
@@ -928,7 +938,8 @@ public class DialogController {
 		// Give it a moment, then force.
 		new Thread(() -> {
 			try {
-				p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+				p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+			} catch (InterruptedException ignored) {}
 			if (p.isAlive()) p.destroyForcibly();
 		}, "picl-stop").start();
 	}
@@ -969,11 +980,11 @@ public class DialogController {
 	private void onSaveTreeAs(ActionEvent e) {
 		var chooser = new FileChooser();
 		chooser.setTitle("Save trees as");
-		// The Trees tab shows the .treeinfo file (annotated, multi-tree),
+		// The Trees tab shows the .trees file (annotated, multi-tree),
 		// so default to that extension. Plain Newick is offered as a
 		// secondary option in case the user pasted in pure Newick.
 		chooser.getExtensionFilters().add(
-				new FileChooser.ExtensionFilter("Tree info", "*.treeinfo"));
+				new FileChooser.ExtensionFilter("Tree info", "*.trees"));
 		chooser.getExtensionFilters().add(
 				new FileChooser.ExtensionFilter("Newick tree", "*.tre", "*.tree", "*.nwk", "*.newick"));
 		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All files", "*"));
@@ -981,7 +992,7 @@ public class DialogController {
 			chooser.setInitialDirectory(lastTreeFile.getParent().toFile());
 			chooser.setInitialFileName(lastTreeFile.getFileName().toString());
 		} else {
-			chooser.setInitialFileName("output.treeinfo");
+			chooser.setInitialFileName("output.trees");
 		}
 		var file = chooser.showSaveDialog(window());
 		if (file == null) return;
@@ -1006,9 +1017,7 @@ public class DialogController {
 			} catch (IOException ex) {
 				// Don't tear down the run; just stop logging and surface a status.
 				try {
-					logFileWriter.close();
-				} catch (IOException ignored) {
-				}
+					logFileWriter.close(); } catch (IOException ignored) {}
 				logFileWriter = null;
 				statusLabel.setText("Log file write failed: " + ex.getMessage());
 			}
@@ -1072,19 +1081,18 @@ public class DialogController {
 
 	private static double parseDouble(TextField tf, double dflt) {
 		try {
-			return Double.parseDouble(tf.getText().trim()); } catch (Exception ex) { return dflt;
-		}
+			return Double.parseDouble(tf.getText().trim());
+		} catch (Exception ex) { return dflt; }
 	}
-
 	private static int parseInt(TextField tf, int dflt) {
 		try {
-			return Integer.parseInt(tf.getText().trim()); } catch (Exception ex) { return dflt;
-		}
+			return Integer.parseInt(tf.getText().trim());
+		} catch (Exception ex) { return dflt; }
 	}
-
 	private static long parseLong(TextField tf, long dflt) {
 		try {
-			return Long.parseLong(tf.getText().trim()); } catch (Exception ex) { return dflt; }
+			return Long.parseLong(tf.getText().trim());
+		} catch (Exception ex) { return dflt; }
 	}
 
 	private void error(String header, Throwable t) {
