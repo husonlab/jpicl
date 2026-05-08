@@ -6,4 +6,6 @@ module jpicl {
 
 	exports jpicl.main;
 	opens jpicl.dialog to javafx.fxml;
+	opens jpicl.main to javafx.fxml;
+
 }

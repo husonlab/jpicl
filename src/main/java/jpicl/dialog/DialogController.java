@@ -260,9 +260,21 @@ public class DialogController {
 	/** The currently running process, or null. */
 	private Process currentProcess;
 
-	/** Default location of the PICL binary, relative to the JVM's working dir. */
-	private static final Path DEFAULT_PICL_EXECUTABLE =
-			Paths.get(System.getProperty("user.dir"), "native", "picl", "src", "picl");
+	/**
+	 * Default location of the PICL binary. First tries to extract a
+	 * bundled binary from the JAR (works once the JAR has been built
+	 * with native/&lt;platform&gt;/picl resources); falls back to the
+	 * developer convention native/picl/src/picl in the project root
+	 * for IDE runs before the bundling step has happened.
+	 */
+	private static String resolveDefaultPiclExecutable() {
+		try {
+			return jpicl.util.PiclExtractor.resolveExecutable().toString();
+		} catch (Exception ex) {
+			return Paths.get(System.getProperty("user.dir"),
+					"native", "picl", "src", "picl").toString();
+		}
+	}
 
 	/** Default extension for the output tree (replaces the alignment extension). */
 	private static final String TREE_EXTENSION = ".tre";
@@ -375,9 +387,7 @@ public class DialogController {
 		settingsTabMenuItem.setSelected(true);
 	}
 
-	/**
-	 * Bindings that need a live Scene (full-screen, dark mode, windows list).
-	 */
+	/** Bindings that need a live Scene (full-screen, dark mode, windows list). */
 	private void installSceneDependentMenuBindings() {
 		var scene = menuBar.getScene();
 		if (scene == null) return;
@@ -453,9 +463,7 @@ public class DialogController {
 		}
 	}
 
-	/**
-	 * Run an edit action against whichever TextInputControl currently has focus.
-	 */
+	/** Run an edit action against whichever TextInputControl currently has focus. */
 	private void onFocusedText(Consumer<TextInputControl> action) {
 		var scene = menuBar.getScene();
 		if (scene == null) return;
@@ -463,16 +471,12 @@ public class DialogController {
 		if (owner instanceof TextInputControl tic) action.accept(tic);
 	}
 
-	/**
-	 * File → New: reset the dialog to default settings.
-	 */
+	/** File → New: reset the dialog to default settings. */
 	private void onNew() {
 		jpicl.window.Window.createWindow(new Stage()).getStage().show();
 	}
 
-	/**
-	 * File → Print: print the contents of the currently selected tab.
-	 */
+	/** File → Print: print the contents of the currently selected tab. */
 	private void onPrint() {
 		var node = nodeToPrint();
 		if (node == null) {
@@ -491,9 +495,7 @@ public class DialogController {
 		}
 	}
 
-	/**
-	 * File → Page Setup.
-	 */
+	/** File → Page Setup. */
 	private void onPageSetup() {
 		var job = PrinterJob.createPrinterJob();
 		if (job == null) {
@@ -503,9 +505,7 @@ public class DialogController {
 		job.showPageSetupDialog(menuBar.getScene().getWindow());
 	}
 
-	/**
-	 * Pick a sensible node to print based on the currently selected tab.
-	 */
+	/** Pick a sensible node to print based on the currently selected tab. */
 	private Node nodeToPrint() {
 		var sel = mainTabPane.getSelectionModel().getSelectedItem();
 		if (sel == logTab) return logTabTextArea;
@@ -593,7 +593,7 @@ public class DialogController {
 
 	/** Sets defaults and bindings for controls in the Output tab. */
 	private void configureOutputTab() {
-		piclExecutableTextField.setText(DEFAULT_PICL_EXECUTABLE.toString());
+		piclExecutableTextField.setText(resolveDefaultPiclExecutable());
 
 		// Disable Run while running OR while no alignment has been set.
 		// Stop is the inverse — only enabled while a process is alive.
