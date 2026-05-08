@@ -1,5 +1,5 @@
 /*
- * App.java Copyright (C) 2026 Daniel H. Huson
+ * Version.java Copyright (C) 2026 Daniel H. Huson
  *
  *  (Some files contain contributions from other authors, who are then mentioned separately.)
  *
@@ -20,16 +20,7 @@
 
 package jpicl.main;
 
-import javafx.application.Application;
-import javafx.stage.Stage;
-import jpicl.window.Window;
-
-/**
- * run the app
- */
-public class App extends Application {
-	@Override
-	public void start(Stage stage) throws Exception {
-		Window.createWindow(stage).getStage().show();
-	}
+public class Version {
+	static public final String NAME = "JPICL";
+	static public final String SHORT_DESCRIPTION = "JPICL (version 0.0.0, built 2026)";
 }

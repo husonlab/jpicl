@@ -5,8 +5,12 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.print.PrinterJob;
+import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.ChoiceBoxTableCell;
 import javafx.scene.control.cell.TextFieldTableCell;
@@ -15,6 +19,7 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Random;
+import java.util.function.Consumer;
 
 /**
  * Controller for the PICL settings dialog (Dialog.fxml / PiclSettingsView.fxml).
@@ -163,7 +169,7 @@ public class DialogController {
 	@FXML
 	private Tab settingsTab;
 	@FXML
-	private Tab outputTab;
+	private Tab logTab;
 	@FXML
 	private TextField piclExecutableTextField;
 	@FXML
@@ -179,11 +185,11 @@ public class DialogController {
 	@FXML
 	private Button stopRunButton;
 	@FXML
-	private TextArea outputTextArea;
+	private TextArea logTabTextArea;
 
 	// Tree tab
 	@FXML
-	private Tab treeTab;
+	private Tab outputTab;
 	@FXML
 	private Label treesFilePathLabel;
 	@FXML
@@ -193,7 +199,51 @@ public class DialogController {
 	@FXML
 	private Button saveTreeAsButton;
 	@FXML
-	private TextArea treeTextArea;
+	private TextArea outputTextArea;
+
+	// Menu bar
+	@FXML
+	private MenuBar menuBar;
+	@FXML
+	private MenuItem newMenuItem;
+	@FXML
+	private MenuItem openMenuItem;
+	@FXML
+	private MenuItem saveMenuItem;
+	@FXML
+	private MenuItem printMenuItem;
+	@FXML
+	private MenuItem pageSetupMenuItem;
+	@FXML
+	private MenuItem closeMenuItem;
+	@FXML
+	private MenuItem quitMenuItem;
+	@FXML
+	private MenuItem undoMenuItem;
+	@FXML
+	private MenuItem redoMenuItem;
+	@FXML
+	private MenuItem cutMenuItem;
+	@FXML
+	private MenuItem copyMenuItem;
+	@FXML
+	private MenuItem pasteMenuItem;
+	@FXML
+	private MenuItem deleteMenuItem;
+	@FXML
+	private Menu viewMenu;
+	@FXML
+	private CheckMenuItem fullScreenMenuItem;
+	@FXML
+	private CheckMenuItem darkModeMenuItem;
+	@FXML
+	private ToggleGroup tabsToggleGroup;
+	@FXML
+	private RadioMenuItem settingsTabMenuItem;
+	@FXML
+	private RadioMenuItem logTabMenuItem;
+	@FXML
+	private RadioMenuItem outputTabMenuItem;
 
 	// -----------------------------------------------------------------
 	//  Internal state
@@ -264,10 +314,203 @@ public class DialogController {
 		configureCountLabels();
 		configureFilesSection();
 		configureOutputTab();
+		configureMenuBar();
 		wireButtonHandlers();
 
 		applyToUi(settings);   // populate with defaults
 		statusLabel.setText("Ready");
+	}
+
+	// =================================================================
+	//  Menu bar wiring
+	// =================================================================
+
+	/**
+	 * Wires every File / Edit / View menu item. Many edit-menu items
+	 * forward to whichever TextInputControl currently has focus, so they
+	 * Just Work on whatever text field/area the user is in.
+	 */
+	private void configureMenuBar() {
+		// ----- File -----
+		newMenuItem.setOnAction(e -> onNew());
+		openMenuItem.setOnAction(this::onLoadSettings);   // alias for "Open…"
+		saveMenuItem.setOnAction(this::onSaveSettings);   // alias for "Save…"
+		printMenuItem.setOnAction(e -> onPrint());
+		pageSetupMenuItem.setOnAction(e -> onPageSetup());
+		closeMenuItem.setOnAction(e -> {
+			var stage = (Stage) menuBar.getScene().getWindow();
+			stage.close();
+		});
+		quitMenuItem.setOnAction(e -> Platform.exit());
+
+		// ----- Edit -----
+		// Forward to the focused TextInputControl. JavaFX text fields
+		// already handle the keyboard shortcuts natively; the menu items
+		// give the user a discoverable, click-driven path.
+		undoMenuItem.setOnAction(e -> onFocusedText(TextInputControl::undo));
+		redoMenuItem.setOnAction(e -> onFocusedText(TextInputControl::redo));
+		cutMenuItem.setOnAction(e -> onFocusedText(TextInputControl::cut));
+		copyMenuItem.setOnAction(e -> onFocusedText(TextInputControl::copy));
+		pasteMenuItem.setOnAction(e -> onFocusedText(TextInputControl::paste));
+		deleteMenuItem.setOnAction(e -> onFocusedText(TextInputControl::deleteNextChar));
+
+		// ----- View -----
+		// Full screen and Dark mode hooks need a Scene, which isn't
+		// available until the controls are attached to a window. Defer.
+		Platform.runLater(this::installSceneDependentMenuBindings);
+
+		// Tab radio items: keep the radio menu and the TabPane in sync.
+		settingsTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(settingsTab));
+		logTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(logTab));
+		outputTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(outputTab));
+
+		// And the reverse direction: when the tab changes (by any means),
+		// tick the matching radio item.
+		mainTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+			if (newTab == settingsTab) settingsTabMenuItem.setSelected(true);
+			else if (newTab == logTab) logTabMenuItem.setSelected(true);
+			else if (newTab == outputTab) outputTabMenuItem.setSelected(true);
+		});
+		// Set initial state.
+		settingsTabMenuItem.setSelected(true);
+	}
+
+	/**
+	 * Bindings that need a live Scene (full-screen, dark mode, windows list).
+	 */
+	private void installSceneDependentMenuBindings() {
+		var scene = menuBar.getScene();
+		if (scene == null) return;
+		var stage = (Stage) scene.getWindow();
+		if (stage == null) return;
+
+		// Full screen: bidirectional with stage.fullScreenProperty.
+		fullScreenMenuItem.setSelected(stage.isFullScreen());
+		fullScreenMenuItem.setOnAction(e -> stage.setFullScreen(fullScreenMenuItem.isSelected()));
+		stage.fullScreenProperty().addListener((obs, was, now) -> fullScreenMenuItem.setSelected(now));
+
+		// Dark mode: flip Modena's `-fx-base` token on the scene root.
+		darkModeMenuItem.setOnAction(e -> applyDarkMode(scene, darkModeMenuItem.isSelected()));
+
+		// Windows section at the bottom of View. Replace this listener
+		// target with your custom static observable list if you don't
+		// want to use the JavaFX-wide one.
+		Window.getWindows().addListener((ListChangeListener<Window>) c ->
+				Platform.runLater(this::rebuildWindowsSection));
+		Platform.runLater(this::rebuildWindowsSection);  // initial fill
+	}
+
+	/**
+	 * Marker placed in {@code MenuItem.userData} on every item the
+	 * windows-section rebuild owns. Used so we can wipe and recreate the
+	 * section on each change without disturbing the static menu items
+	 * above (Full Screen, Dark Mode, the tabs toggle group, etc.).
+	 */
+	private static final Object WINDOWS_SECTION_MARKER = new Object();
+
+	/**
+	 * Wipes and rebuilds the bottom section of the View menu so that it
+	 * lists every visible Stage with a non-blank title. Runs on the FX
+	 * thread (callers schedule it via {@link Platform#runLater}).
+	 */
+	private void rebuildWindowsSection() {
+		// Clear out whatever this method added on the previous run.
+		viewMenu.getItems().removeIf(item -> item.getUserData() == WINDOWS_SECTION_MARKER);
+
+		boolean addedSeparator = false;
+		for (var w : Window.getWindows()) {
+			if (!(w instanceof Stage stage)) continue;        // skip popups, tooltips, etc.
+			if (!stage.isShowing()) continue;
+			var title = stage.getTitle();
+			if (title == null || title.isBlank()) continue;
+
+			if (!addedSeparator) {
+				var sep = new SeparatorMenuItem();
+				sep.setUserData(WINDOWS_SECTION_MARKER);
+				viewMenu.getItems().add(sep);
+				addedSeparator = true;
+			}
+
+			var item = new MenuItem();
+			item.textProperty().bind(stage.titleProperty());  // live-update on title change
+			item.setUserData(WINDOWS_SECTION_MARKER);
+			item.setOnAction(e -> {
+				stage.toFront();
+				stage.requestFocus();
+			});
+			viewMenu.getItems().add(item);
+		}
+	}
+
+	private static void applyDarkMode(Scene scene, boolean dark) {
+		var root = scene.getRoot();
+		if (dark) {
+			root.setStyle("-fx-base: #2b2b2b; -fx-background: #2b2b2b;"
+						  + " -fx-control-inner-background: #2b2b2b;"
+						  + " -fx-text-base-color: #e8e8e8;");
+		} else {
+			root.setStyle("");
+		}
+	}
+
+	/**
+	 * Run an edit action against whichever TextInputControl currently has focus.
+	 */
+	private void onFocusedText(Consumer<TextInputControl> action) {
+		var scene = menuBar.getScene();
+		if (scene == null) return;
+		Node owner = scene.getFocusOwner();
+		if (owner instanceof TextInputControl tic) action.accept(tic);
+	}
+
+	/**
+	 * File → New: reset the dialog to default settings.
+	 */
+	private void onNew() {
+		jpicl.window.Window.createWindow(new Stage()).getStage().show();
+	}
+
+	/**
+	 * File → Print: print the contents of the currently selected tab.
+	 */
+	private void onPrint() {
+		var node = nodeToPrint();
+		if (node == null) {
+			statusLabel.setText("Nothing to print.");
+			return;
+		}
+		var job = PrinterJob.createPrinterJob();
+		if (job == null) {
+			statusLabel.setText("No printer available.");
+			return;
+		}
+		var stage = menuBar.getScene().getWindow();
+		if (job.showPrintDialog(stage) && job.printPage(node)) {
+			job.endJob();
+			statusLabel.setText("Printed.");
+		}
+	}
+
+	/**
+	 * File → Page Setup.
+	 */
+	private void onPageSetup() {
+		var job = PrinterJob.createPrinterJob();
+		if (job == null) {
+			statusLabel.setText("No printer available.");
+			return;
+		}
+		job.showPageSetupDialog(menuBar.getScene().getWindow());
+	}
+
+	/**
+	 * Pick a sensible node to print based on the currently selected tab.
+	 */
+	private Node nodeToPrint() {
+		var sel = mainTabPane.getSelectionModel().getSelectedItem();
+		if (sel == logTab) return logTabTextArea;
+		if (sel == outputTab) return outputTextArea;
+		return mainTabPane;   // Settings tab — print the whole pane
 	}
 
 	/**
@@ -359,8 +602,8 @@ public class DialogController {
 		stopRunButton.disableProperty().bind(running.not());
 
 		// Empty Output → Clear/Copy disabled.
-		clearOutputButton.disableProperty().bind(outputTextArea.textProperty().isEmpty());
-		copyOutputButton.disableProperty().bind(outputTextArea.textProperty().isEmpty());
+		clearOutputButton.disableProperty().bind(logTabTextArea.textProperty().isEmpty());
+		copyOutputButton.disableProperty().bind(logTabTextArea.textProperty().isEmpty());
 
 		// Indeterminate progress bar visible only while a run is in flight.
 		runProgressBar.setProgress(-1.0);                            // indeterminate ("barber pole")
@@ -370,8 +613,8 @@ public class DialogController {
 		runStatusLabel.setText("Idle");
 
 		// Tree-tab buttons disabled until a tree is loaded.
-		copyTreeButton.disableProperty().bind(treeTextArea.textProperty().isEmpty());
-		saveTreeAsButton.disableProperty().bind(treeTextArea.textProperty().isEmpty());
+		copyTreeButton.disableProperty().bind(outputTextArea.textProperty().isEmpty());
+		saveTreeAsButton.disableProperty().bind(outputTextArea.textProperty().isEmpty());
 	}
 
 	// -----------------------------------------------------------------
@@ -515,7 +758,7 @@ public class DialogController {
 
 		piclExecutableBrowseButton.setOnAction(e -> browseForFile(
 				piclExecutableTextField, "Executable", "*"));
-		clearOutputButton.setOnAction(e -> outputTextArea.clear());
+		clearOutputButton.setOnAction(e -> logTabTextArea.clear());
 		copyOutputButton.setOnAction(this::onCopyOutput);
 		stopRunButton.setOnAction(this::onStopRun);
 
@@ -677,8 +920,14 @@ public class DialogController {
 	}
 
 	private void onCancel(ActionEvent e) {
-		var stage = (Stage) cancelButton.getScene().getWindow();
-		stage.close();
+		// Cancel halts a running picl process. It does NOT close the
+		// window — the user can still review the log, edit settings,
+		// or relaunch. If picl isn't running, this is a no-op.
+		if (currentProcess == null || !currentProcess.isAlive()) {
+			statusLabel.setText("Nothing to cancel — picl isn't running.");
+			return;
+		}
+		onStopRun(e);
 	}
 
 	private void onValidate(ActionEvent e) {
@@ -785,8 +1034,8 @@ public class DialogController {
 				: new File(System.getProperty("user.dir"));
 
 		// Switch the user to the Log tab and clear previous output.
-		mainTabPane.getSelectionModel().select(outputTab);
-		outputTextArea.clear();
+		mainTabPane.getSelectionModel().select(logTab);
+		logTabTextArea.clear();
 
 		// Open the log file before any appendOutput call so the header
 		// and command line make it into the .log file too.
@@ -899,7 +1148,7 @@ public class DialogController {
 			// headers in mutation and coalescent units).
 			if (pendingTreeInfoPath != null
 				&& loadTreeFromFile(pendingTreeInfoPath)) {
-				mainTabPane.getSelectionModel().select(treeTab);
+				mainTabPane.getSelectionModel().select(outputTab);
 			}
 		} else {
 			runStatusLabel.setText("Failed (exit " + exitCode + ")");
@@ -919,7 +1168,7 @@ public class DialogController {
 		}
 		try {
 			var content = Files.readString(treeFile);
-			treeTextArea.setText(content);
+			outputTextArea.setText(content);
 			treesFilePathLabel.setText(treeFile.toString());
 			lastTreeFile = treeFile;
 			return true;
@@ -946,7 +1195,7 @@ public class DialogController {
 
 	private void onCopyOutput(ActionEvent e) {
 		var content = new ClipboardContent();
-		content.putString(outputTextArea.getText());
+		content.putString(logTabTextArea.getText());
 		Clipboard.getSystemClipboard().setContent(content);
 		statusLabel.setText("Output copied to clipboard");
 	}
@@ -972,7 +1221,7 @@ public class DialogController {
 
 	private void onCopyTree(ActionEvent e) {
 		var content = new ClipboardContent();
-		content.putString(treeTextArea.getText());
+		content.putString(outputTextArea.getText());
 		Clipboard.getSystemClipboard().setContent(content);
 		statusLabel.setText("Tree copied to clipboard");
 	}
@@ -997,7 +1246,7 @@ public class DialogController {
 		var file = chooser.showSaveDialog(window());
 		if (file == null) return;
 		try {
-			Files.writeString(file.toPath(), treeTextArea.getText());
+			Files.writeString(file.toPath(), outputTextArea.getText());
 			statusLabel.setText("Saved to " + file.getName());
 		} catch (IOException ex) {
 			error("Could not save", ex);
@@ -1009,7 +1258,7 @@ public class DialogController {
 	 * .log file (when one is open). Caller is responsible for thread context.
 	 */
 	private void appendOutput(String text) {
-		outputTextArea.appendText(text);
+		logTabTextArea.appendText(text);
 		if (logFileWriter != null) {
 			try {
 				logFileWriter.write(text);
