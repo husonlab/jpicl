@@ -76,8 +76,8 @@
             <!--  follow the theme (incl. Dark Mode).                   -->
             <!-- ====================================================== -->
             <ToolBar fx:id="topToolBar">
-                
-                <Button fx:id="loadSettingsButton" contentDisplay="GRAPHIC_ONLY"
+
+            <Button fx:id="loadSettingsButton" contentDisplay="GRAPHIC_ONLY"
                         style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;" text="Open…">
                     <graphic>
                         <Region maxHeight="16.0" maxWidth="16.0" minHeight="16.0" minWidth="16.0" prefHeight="16.0"
