@@ -5,9 +5,8 @@ set -e
 SCRIPT_DIR="${0:A:h}"
 PROJECT_ROOT="$SCRIPT_DIR/.."
 
-# 1. Compile PICL.
-cd "$PROJECT_ROOT/native/picl/src"
-gcc main.c -lm -o picl
+# 1. Compile PICL via the shared core script.
+"$SCRIPT_DIR/compile-picl-core.sh"
 
 # 2. Detect platform key matching what PiclExtractor expects.
 case "$(uname -s)-$(uname -m)" in
