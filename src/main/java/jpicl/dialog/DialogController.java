@@ -16,17 +16,21 @@ import javafx.scene.control.cell.ChoiceBoxTableCell;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.stage.Window;
+import jpicl.draw.DrawPhylogram;
+import jpicl.util.NewickParser;
+import jpicl.util.TreeNode;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Random;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -201,6 +205,14 @@ public class DialogController {
 	@FXML
 	private TextArea outputTextArea;
 
+	// Tree tab (graphical phylogram view of the .tre file)
+	@FXML
+	private Tab treeTab;
+	@FXML
+	private Label treeFilePathLabel;
+	@FXML
+	private Pane treeCanvasPane;
+
 	// Menu bar
 	@FXML
 	private MenuBar menuBar;
@@ -244,6 +256,8 @@ public class DialogController {
 	private RadioMenuItem logTabMenuItem;
 	@FXML
 	private RadioMenuItem outputTabMenuItem;
+	@FXML
+	private RadioMenuItem treeTabMenuItem;
 
 	// -----------------------------------------------------------------
 	//  Internal state
@@ -312,6 +326,24 @@ public class DialogController {
 	/** Tree-info path written by picl in the most recent run; null if no run yet. */
 	private Path pendingTreeInfoPath;
 
+	/**
+	 * Output tree (.tre) path written by picl in the most recent run; null if no run yet.
+	 */
+	private Path pendingOutTreePath;
+
+	/**
+	 * Last successfully parsed tree root, retained so we can redraw on resize.
+	 */
+	private TreeNode lastDrawnTreeRoot;
+
+	/**
+	 * Output paths the user has explicitly approved overwriting in the most
+	 * recent change-time prompt. Tracked as a set of absolute paths so the
+	 * run-time re-check can tell "already consented" apart from "newly
+	 * appeared since consent" and only re-prompt when needed.
+	 */
+	private final Set<Path> overwriteConsentedPaths = new LinkedHashSet<>();
+
 	public Settings getSettings() { return settings; }
 
 	// =================================================================
@@ -326,6 +358,7 @@ public class DialogController {
 		configureCountLabels();
 		configureFilesSection();
 		configureOutputTab();
+		configureTreeTab();
 		configureMenuBar();
 		wireButtonHandlers();
 
@@ -375,6 +408,7 @@ public class DialogController {
 		settingsTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(settingsTab));
 		logTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(logTab));
 		outputTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(outputTab));
+		treeTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(treeTab));
 
 		// And the reverse direction: when the tab changes (by any means),
 		// tick the matching radio item.
@@ -382,6 +416,7 @@ public class DialogController {
 			if (newTab == settingsTab) settingsTabMenuItem.setSelected(true);
 			else if (newTab == logTab) logTabMenuItem.setSelected(true);
 			else if (newTab == outputTab) outputTabMenuItem.setSelected(true);
+			else if (newTab == treeTab) treeTabMenuItem.setSelected(true);
 		});
 		// Set initial state.
 		settingsTabMenuItem.setSelected(true);
@@ -540,6 +575,17 @@ public class DialogController {
 			logPathLabel.setText(deriveLogPath(newVal));
 			bootstrapPathLabel.setText(deriveBootstrapPath(newVal));
 		});
+
+		// Overwrite-existence check: fire when the user *commits* a value
+		// (focus loss), not on every keystroke. Browse buttons set the
+		// field text directly without changing focus, so we also call the
+		// check explicitly from the Browse handlers (see wireButtonHandlers).
+		alignmentFileTextField.focusedProperty().addListener((obs, was, is) -> {
+			if (was && !is) promptOverwriteIfNeeded();
+		});
+		outTreeFileTextField.focusedProperty().addListener((obs, was, is) -> {
+			if (was && !is) promptOverwriteIfNeeded();
+		});
 	}
 
 	/** alignment "/path/foo.phy" → "/path/foo.tre". Empty input → empty result. */
@@ -589,6 +635,127 @@ public class DialogController {
 	private static String stripExtension(String filename) {
 		int dot = filename.lastIndexOf('.');
 		return (dot <= 0) ? filename : filename.substring(0, dot);
+	}
+
+	// =================================================================
+	//  Overwrite checking (.tre, .trees, .log, .bootstrap, .values)
+	// =================================================================
+
+	/**
+	 * Returns the absolute paths of every file PICL or this controller
+	 * would write on the next run, given the current alignment and
+	 * output-tree text fields. Skips blanks and the "(none)" sentinel
+	 * the derive helpers return for empty input. Note that .values
+	 * derives from the alignment path, not the output-tree path.
+	 */
+	private List<Path> collectOutputPaths() {
+		var alignment = alignmentFileTextField.getText();
+		var outTree = outTreeFileTextField.getText();
+		var paths = new ArrayList<Path>();
+		addPathIfReal(paths, outTree);                        // .tre
+		addPathIfReal(paths, deriveTreeInfoPath(outTree));    // .trees
+		addPathIfReal(paths, deriveLogPath(outTree));         // .log
+		addPathIfReal(paths, deriveBootstrapPath(outTree));   // .bootstrap
+		addPathIfReal(paths, deriveValuesPath(alignment));    // .values
+		return paths;
+	}
+
+	private static void addPathIfReal(List<Path> out, String s) {
+		if (s != null && !s.isBlank() && !"(none)".equals(s)) {
+			out.add(Paths.get(s).toAbsolutePath().normalize());
+		}
+	}
+
+	/**
+	 * If any of the would-be-written output files already exist on disk,
+	 * ask the user whether to overwrite. On "Yes", remembers consent so
+	 * the run-time re-check can stay quiet. On "No", clears the
+	 * output-tree text field as the simplest way to back the user out.
+	 * <p>
+	 * Called on focus loss from the alignment / output-tree fields, and
+	 * after the corresponding Browse buttons commit a value.
+	 */
+	private void promptOverwriteIfNeeded() {
+		var existing = collectOutputPaths().stream()
+				.filter(Files::exists)
+				.toList();
+		if (existing.isEmpty()) {
+			overwriteConsentedPaths.clear();
+			return;
+		}
+
+		var msg = new StringBuilder("These output files already exist:\n\n");
+		for (var p : existing) msg.append("  • ").append(p).append('\n');
+		msg.append("\nOverwrite them when you press Run?");
+
+		var alert = new Alert(Alert.AlertType.CONFIRMATION, msg.toString(),
+				ButtonType.YES, ButtonType.NO);
+		alert.setHeaderText("Existing files");
+		alert.setTitle("Overwrite existing output files?");
+		var owner = alignmentFileTextField.getScene() != null
+				? alignmentFileTextField.getScene().getWindow() : null;
+		if (owner != null) alert.initOwner(owner);
+
+		Optional<ButtonType> choice = alert.showAndWait();
+		if (choice.isPresent() && choice.get() == ButtonType.YES) {
+			overwriteConsentedPaths.clear();
+			overwriteConsentedPaths.addAll(existing);
+		} else {
+			overwriteConsentedPaths.clear();
+			outTreeFileTextField.clear();
+			statusLabel.setText("Cleared output tree to avoid overwriting existing files.");
+		}
+	}
+
+	/**
+	 * Run-time re-check: returns true if the run should proceed, false to
+	 * abort. If files exist that the user previously consented to, they
+	 * are deleted silently. If new files have appeared since consent (or
+	 * consent was never given), re-prompts the user.
+	 */
+	private boolean confirmAndDeleteExistingOutputs() {
+		var existing = collectOutputPaths().stream()
+				.filter(Files::exists)
+				.toList();
+		if (existing.isEmpty()) return true;
+
+		// Anything in `existing` not already covered by prior consent
+		// triggers a re-prompt; otherwise we trust the earlier "Yes".
+		var unconsented = existing.stream()
+				.filter(p -> !overwriteConsentedPaths.contains(p))
+				.toList();
+		if (!unconsented.isEmpty()) {
+			var msg = new StringBuilder("These output files exist and will be deleted before PICL runs:\n\n");
+			for (var p : existing) msg.append("  • ").append(p).append('\n');
+			msg.append("\nProceed?");
+
+			var alert = new Alert(Alert.AlertType.CONFIRMATION, msg.toString(),
+					ButtonType.YES, ButtonType.NO);
+			alert.setHeaderText("Existing output files");
+			alert.setTitle("Overwrite existing output files?");
+			var owner = runPiclButton.getScene() != null
+					? runPiclButton.getScene().getWindow() : null;
+			if (owner != null) alert.initOwner(owner);
+
+			Optional<ButtonType> choice = alert.showAndWait();
+			if (choice.isEmpty() || choice.get() != ButtonType.YES) {
+				statusLabel.setText("Run cancelled — existing output files were not overwritten.");
+				return false;
+			}
+			overwriteConsentedPaths.addAll(existing);
+		}
+
+		// Delete what's there. PICL appends to some files and overwrites
+		// others, so a clean slate is the only way to be sure of results.
+		for (var p : existing) {
+			try {
+				Files.deleteIfExists(p);
+			} catch (IOException ex) {
+				statusLabel.setText("Could not delete " + p.getFileName() + ": " + ex.getMessage());
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/** Sets defaults and bindings for controls in the Output tab. */
@@ -735,12 +902,16 @@ public class DialogController {
 		loadSettingsButton.setOnAction(this::onLoadSettings);
 		saveSettingsButton.setOnAction(this::onSaveSettings);
 
-		alignmentBrowseButton.setOnAction(e -> browseForFile(
-				alignmentFileTextField, "Phylip alignment",
-				"*.phy", "*.phylip"));
-		outTreeFileBrowseButton.setOnAction(e -> browseForSaveFile(
-				outTreeFileTextField, "Newick tree",
-				"*.tre", "*.tree", "*.nwk", "*.newick"));
+		alignmentBrowseButton.setOnAction(e -> {
+			browseForFile(alignmentFileTextField, "Phylip alignment",
+					"*.phy", "*.phylip");
+			promptOverwriteIfNeeded();
+		});
+		outTreeFileBrowseButton.setOnAction(e -> {
+			browseForSaveFile(outTreeFileTextField, "Newick tree",
+					"*.tre", "*.tree", "*.nwk", "*.newick");
+			promptOverwriteIfNeeded();
+		});
 		treeFileBrowseButton.setOnAction(e -> browseForFile(
 				treeFileTextField, "Tree files",
 				"*.tre", "*.tree", "*.nwk", "*.newick", "*.nex", "*.nxs"));
@@ -969,6 +1140,14 @@ public class DialogController {
 			return;
 		}
 
+		// Re-check for existing output files and delete them up-front.
+		// PICL appends to some files and overwrites others, so a clean
+		// slate is the only way to be sure the run's output isn't a mix
+		// of stale and fresh data. Returns false if the user cancels.
+		if (!confirmAndDeleteExistingOutputs()) {
+			return;
+		}
+
 		// Resolve the PICL executable.
 		var execPath = Paths.get(piclExecutableTextField.getText().trim());
 		if (!Files.isExecutable(execPath)) {
@@ -1082,6 +1261,10 @@ public class DialogController {
 		// the Trees tab — that file contains the trees PICL wrote (in
 		// mutation and coalescent units), with section headers.
 		this.pendingTreeInfoPath = treesPath;
+
+		// Remember the .tre path (the user's "Output tree", a plain Newick
+		// file) so onProcessExited can draw it into the Tree tab.
+		this.pendingOutTreePath = picltreesPath;
 		try {
 			currentProcess = pb.start();
 		} catch (IOException ex) {
@@ -1150,6 +1333,12 @@ public class DialogController {
 				&& loadTreeFromFile(pendingTreeInfoPath)) {
 				mainTabPane.getSelectionModel().select(outputTab);
 			}
+
+			// Draw the .tre file (single Newick output tree) into the
+			// graphical Tree tab. The selected tab stays where it was.
+			if (pendingOutTreePath != null) {
+				drawTreeFromFile(pendingOutTreePath);
+			}
 		} else {
 			runStatusLabel.setText("Failed (exit " + exitCode + ")");
 			statusLabel.setText("PICL exited with code " + exitCode);
@@ -1175,6 +1364,80 @@ public class DialogController {
 		} catch (IOException ex) {
 			treesFilePathLabel.setText(treeFile + "  (error)");
 			statusLabel.setText("Could not read " + treeFile.getFileName() + ": " + ex.getMessage());
+			return false;
+		}
+	}
+
+	// =================================================================
+	//  Tree tab — graphical phylogram view of the .tre file
+	// =================================================================
+
+	/**
+	 * Initial state for the Tree tab: a placeholder, plus listeners that
+	 * redraw the most recent tree whenever the canvas resizes.
+	 */
+	private void configureTreeTab() {
+		showTreePlaceholder("Run PICL to see the tree.");
+		treeCanvasPane.widthProperty().addListener((obs, o, n) -> redrawTree());
+		treeCanvasPane.heightProperty().addListener((obs, o, n) -> redrawTree());
+	}
+
+	/**
+	 * Replaces the canvas contents with a single labelled placeholder.
+	 */
+	private void showTreePlaceholder(String text) {
+		var label = new Label(text);
+		label.setLayoutX(20);
+		label.setLayoutY(20);
+		treeCanvasPane.getChildren().setAll(label);
+		lastDrawnTreeRoot = null;
+	}
+
+	/**
+	 * Re-runs DrawPhylogram with the current canvas size. No-op if no tree loaded yet.
+	 */
+	private void redrawTree() {
+		if (lastDrawnTreeRoot == null) return;
+		var w = treeCanvasPane.getWidth();
+		var h = treeCanvasPane.getHeight();
+		if (w <= 40 || h <= 40) return; // not laid out yet, or too small to bother
+		var pad = 20.0;
+		var group = DrawPhylogram.draw(lastDrawnTreeRoot, w - 2 * pad, h - 2 * pad);
+		group.setLayoutX(pad);
+		group.setLayoutY(pad);
+		treeCanvasPane.getChildren().setAll(group);
+	}
+
+	/**
+	 * Reads the given .tre file, parses the first Newick string in it, and
+	 * draws it into the Tree tab. Returns true on success.
+	 * <p>
+	 * If the file contains multiple trees (semicolon-separated), only the
+	 * first is drawn.
+	 */
+	private boolean drawTreeFromFile(Path treeFile) {
+		if (!Files.isReadable(treeFile)) {
+			treeFilePathLabel.setText(treeFile + "  (not found)");
+			showTreePlaceholder("Tree file not found.");
+			return false;
+		}
+		try {
+			var content = Files.readString(treeFile).trim();
+			if (content.isEmpty()) {
+				treeFilePathLabel.setText(treeFile + "  (empty)");
+				showTreePlaceholder("Tree file is empty.");
+				return false;
+			}
+			var semi = content.indexOf(';');
+			var newick = (semi >= 0) ? content.substring(0, semi + 1) : content;
+			lastDrawnTreeRoot = new NewickParser(newick).parse();
+			treeFilePathLabel.setText(treeFile.toString());
+			redrawTree();
+			return true;
+		} catch (Exception ex) {
+			treeFilePathLabel.setText(treeFile + "  (error)");
+			statusLabel.setText("Could not draw " + treeFile.getFileName() + ": " + ex.getMessage());
+			showTreePlaceholder("Could not parse tree: " + ex.getMessage());
 			return false;
 		}
 	}

@@ -28,6 +28,7 @@ import javafx.scene.shape.MoveTo;
 import javafx.scene.shape.Path;
 import jpicl.util.TreeNode;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.DoubleFunction;
 
@@ -37,16 +38,23 @@ import java.util.function.DoubleFunction;
  */
 public class DrawPhylogram {
 	public static Group draw(TreeNode root, double width, double height) {
+		width -= 100;
 		var counter = new LongAdder();
+		var maxLabelLength = new AtomicInteger(0);
 
 		root.postOrderTraversal(v -> {
 			if (v.isLeaf()) {
 				counter.increment();
 				v.setY(counter.intValue());
+				if (v.getLabel() != null && !v.getLabel().isBlank()) {
+					maxLabelLength.set(Math.max(maxLabelLength.get(), v.getLabel().length()));
+				}
 			} else {
 				v.setY(v.getChildren().stream().mapToDouble(TreeNode::getY).average().orElse(0.0));
 			}
 		});
+
+		width = Math.max(100, width - maxLabelLength.get() * (new Label()).getFont().getSize());
 
 		root.preOrderTraversal(v -> {
 			if (v == root) {
@@ -68,7 +76,7 @@ public class DrawPhylogram {
 		root.preOrderTraversal(v -> {
 			var vX = transformX.apply(v.getX());
 			var vY = transformY.apply(v.getY());
-			var shape = new Circle(3, vX, vY);
+			var shape = new Circle(vX, vY, 1.5);
 			nodeGroup.getChildren().add(shape);
 			if (v.getLabel() != null && !v.getLabel().isBlank()) {
 				var label = new Label(v.getLabel());

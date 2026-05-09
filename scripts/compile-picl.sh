@@ -71,7 +71,7 @@ jobs:
 
       - name: Build picl (Windows)
         if: matrix.target == 'windows-x86_64'
-        shell: 'msys2 {0}'
+        shell: msys2 {0}
         run: |
           cd native/picl/src
           gcc -O2 main.c -lm -o ${{ matrix.binary }}
@@ -79,7 +79,7 @@ jobs:
 
       # ---------- Upload per-platform artifact ----------
       - name: Upload binary
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v5
         with:
           name: picl-${{ matrix.target }}
           path: native/picl/src/${{ matrix.binary }}
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Download all per-platform artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v5
         with:
           path: staging
 
@@ -108,7 +108,7 @@ jobs:
           ls -lR out
 
       - name: Upload combined bundle
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v5
         with:
           name: picl-binaries-all
           path: out/

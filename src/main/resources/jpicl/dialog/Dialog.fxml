@@ -63,6 +63,8 @@
                                            toggleGroup="$tabsToggleGroup"/>
                             <RadioMenuItem fx:id="outputTabMenuItem" accelerator="Shortcut+3" text="Output"
                                            toggleGroup="$tabsToggleGroup"/>
+                            <RadioMenuItem fx:id="treeTabMenuItem" accelerator="Shortcut+4" text="Tree"
+                                           toggleGroup="$tabsToggleGroup"/>
                         </items>
                     </Menu>
                 </menus>
@@ -77,7 +79,7 @@
             <!-- ====================================================== -->
             <ToolBar fx:id="topToolBar">
 
-            <Button fx:id="loadSettingsButton" contentDisplay="GRAPHIC_ONLY"
+                <Button fx:id="loadSettingsButton" contentDisplay="GRAPHIC_ONLY"
                         style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;" text="Open…">
                     <graphic>
                         <Region maxHeight="16.0" maxWidth="16.0" minHeight="16.0" minWidth="16.0" prefHeight="16.0"
@@ -476,6 +478,29 @@
                             <center>
                                 <TextArea fx:id="outputTextArea" editable="false" style="-fx-font-family: 'monospace';"
                                           wrapText="true"/>
+                            </center>
+                        </BorderPane>
+                    </content>
+                </Tab>
+
+                <Tab fx:id="treeTab" text="Tree">
+                    <content>
+                        <BorderPane>
+                            <top>
+                                <VBox>
+                                    <HBox alignment="CENTER_LEFT" spacing="8.0">
+                                        <padding>
+                                            <Insets bottom="8.0" left="12.0" right="12.0" top="8.0"/>
+                                        </padding>
+                                        <Label text="Source"/>
+                                        <Label fx:id="treeFilePathLabel" style="-fx-font-family: 'monospace';"
+                                               text="(no run yet)"/>
+                                    </HBox>
+                                    <Separator/>
+                                </VBox>
+                            </top>
+                            <center>
+                                <Pane fx:id="treeCanvasPane"/>
                             </center>
                         </BorderPane>
                     </content>
