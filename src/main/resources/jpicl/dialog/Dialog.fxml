@@ -13,15 +13,8 @@
 <BorderPane prefHeight="780.0" prefWidth="980.0" xmlns="http://javafx.com/javafx/23.0.1"
             xmlns:fx="http://javafx.com/fxml/1" fx:controller="jpicl.dialog.DialogController">
 
-    <!-- ============================================================== -->
-    <!--  Top toolbar: load / save settings                             -->
-    <!-- ============================================================== -->
     <top>
         <VBox>
-            <!-- ====================================================== -->
-            <!--  Application menu bar                                  -->
-            <!--  useSystemMenuBar=true puts it in the macOS top bar.   -->
-            <!-- ====================================================== -->
             <MenuBar fx:id="menuBar" useSystemMenuBar="true">
                 <menus>
                     <Menu text="File">
@@ -70,33 +63,7 @@
                 </menus>
             </MenuBar>
 
-            <!-- ====================================================== -->
-            <!--  Toolbar (slim) with Material-style icon buttons       -->
-            <!--  Icons are Material Design path data drawn via         -->
-            <!--  Region's -fx-shape, so no image files / dependencies. -->
-            <!--  Fill is bound to -fx-text-base-color so the icons     -->
-            <!--  follow the theme (incl. Dark Mode).                   -->
-            <!-- ====================================================== -->
-            <ToolBar fx:id="topToolBar">
-
-                <Button fx:id="loadSettingsButton" contentDisplay="GRAPHIC_ONLY"
-                        style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;" text="Open…">
-                    <graphic>
-                        <Region maxHeight="16.0" maxWidth="16.0" minHeight="16.0" minWidth="16.0" prefHeight="16.0"
-                                prefWidth="16.0"
-                                style="-fx-shape: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z';                                        -fx-background-color: -fx-text-base-color;"/>
-                    </graphic>
-                </Button>
-
-                <Button fx:id="saveSettingsButton" contentDisplay="GRAPHIC_ONLY"
-                        style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;" text="Save…">
-                    <graphic>
-                        <Region maxHeight="16.0" maxWidth="16.0" minHeight="16.0" minWidth="16.0" prefHeight="16.0"
-                                prefWidth="16.0"
-                                style="-fx-shape: 'M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z';                                        -fx-background-color: -fx-text-base-color;"/>
-                    </graphic>
-                </Button>
-            </ToolBar>
+            <ToolBar fx:id="topToolBar"/>
         </VBox>
     </top>
 
@@ -123,21 +90,35 @@
                                         <ColumnConstraints hgrow="ALWAYS"/>
                                         <ColumnConstraints/>
                                     </columnConstraints>
+                                    <HBox alignment="CENTER_LEFT" spacing="20.0" GridPane.columnIndex="1">
+                                        <children>
 
-                                    <Label text="Alignment file" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                                            <Button fx:id="loadSettingsButton" contentDisplay="CENTER"
+                                                    style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;"
+                                                    text="Load ..."/>
+
+                                            <Button fx:id="saveSettingsButton" contentDisplay="CENTER"
+                                                    style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;"
+                                                    text="Save…."/>
+                                        </children>
+                                    </HBox>
+
+                                    <Label text="Alignment file" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
                                     <TextField fx:id="alignmentFileTextField"
                                                promptText="Path to the Phylip alignment, e.g. foo.phy"
-                                               GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                                               GridPane.columnIndex="1" GridPane.rowIndex="1"/>
                                     <Button fx:id="alignmentBrowseButton" text="Browse…" GridPane.columnIndex="2"
-                                            GridPane.rowIndex="0"/>
+                                            GridPane.rowIndex="1"/>
 
-                                    <Label text="Output tree" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                                    <Label text="Output tree" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
                                     <TextField fx:id="outTreeFileTextField"
                                                promptText="Defaults to alignment-base.tre; edit to override"
-                                               GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                                               GridPane.columnIndex="1" GridPane.rowIndex="2"/>
                                     <Button fx:id="outTreeFileBrowseButton" text="Browse…" GridPane.columnIndex="2"
-                                            GridPane.rowIndex="1"/>
+                                            GridPane.rowIndex="2"/>
+                                    <Label text="Settings"/>
                                     <rowConstraints>
+                                        <RowConstraints minHeight="10.0" prefHeight="30.0"/>
                                         <RowConstraints/>
                                         <RowConstraints/>
                                     </rowConstraints>

@@ -29,6 +29,7 @@ import java.util.Objects;
 public class DialogView {
 	private final Parent root;
 	private final DialogController controller;
+	private final DialogPresenter presenter;
 
 	public DialogView() {
 		var fxmlLoader = new FXMLLoader();
@@ -39,6 +40,7 @@ public class DialogView {
 		}
 		root = fxmlLoader.getRoot();
 		controller = fxmlLoader.getController();
+		presenter = new DialogPresenter(controller);
 		//statusPane = controller.getBottomFlowPane();
 	}
 
@@ -48,5 +50,16 @@ public class DialogView {
 
 	public DialogController getController() {
 		return controller;
+	}
+
+	public DialogPresenter getPresenter() {
+		return presenter;
+	}
+
+	/**
+	 * Convenience accessor — equivalent to {@code getPresenter().getSettings()}.
+	 */
+	public Settings getSettings() {
+		return presenter.getSettings();
 	}
 }

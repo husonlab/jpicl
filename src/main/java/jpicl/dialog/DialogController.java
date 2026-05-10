@@ -1,50 +1,41 @@
+/*
+ * DialogController.java Copyright (C) 2026 Daniel H. Huson
+ *
+ *  (Some files contain contributions from other authors, who are then mentioned separately.)
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package jpicl.dialog;
 
-import javafx.application.Platform;
-import javafx.beans.binding.Bindings;
-import javafx.beans.property.SimpleBooleanProperty;
-import javafx.beans.property.SimpleObjectProperty;
-import javafx.collections.FXCollections;
-import javafx.collections.ListChangeListener;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.print.PrinterJob;
-import javafx.scene.Node;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.ChoiceBoxTableCell;
-import javafx.scene.control.cell.TextFieldTableCell;
-import javafx.scene.input.Clipboard;
-import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.VBox;
-import javafx.stage.FileChooser;
-import javafx.stage.Stage;
-import javafx.stage.Window;
-import jpicl.draw.DrawPhylogram;
-import jpicl.util.NewickParser;
-import jpicl.util.TreeNode;
-
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
-import java.util.function.Consumer;
 
 /**
- * Controller for the PICL settings dialog (Dialog.fxml / PiclSettingsView.fxml).
- * <p>
- * The {@link Settings} instance is the source of truth. The UI is populated
- * from it ({@link #applyToUi(Settings)}), and edits are pushed back into it
- * ({@link #pullFromUi(Settings)}) on demand.
+ * FXML controller for the PICL settings dialog. It owns the @FXML-injected nodes
+ * and exposes them via getters. All wiring, event handlers, and
+ * run-time state live in {@link DialogPresenter}.
+ * Pattern: this is the "passive view"-style split — the controller is
+ * a typed bag of nodes, the presenter does the work.
  */
 public class DialogController {
 
-	// -----------------------------------------------------------------
+	// =================================================================
 	//  @FXML fields  (typed generics added for the choice boxes / table)
-	// -----------------------------------------------------------------
+	// =================================================================
 
 	@FXML
 	private Button alignmentBrowseButton;
@@ -167,7 +158,7 @@ public class DialogController {
 	@FXML
 	private Label bootstrapPathLabel;
 
-	// Output tab
+	// Log tab + execution controls
 	@FXML
 	private TabPane mainTabPane;
 	@FXML
@@ -191,7 +182,7 @@ public class DialogController {
 	@FXML
 	private TextArea logTabTextArea;
 
-	// Tree tab
+	// Output tab (textual tree-info view)
 	@FXML
 	private Tab outputTab;
 	@FXML
@@ -259,1359 +250,413 @@ public class DialogController {
 	@FXML
 	private RadioMenuItem treeTabMenuItem;
 
-	// -----------------------------------------------------------------
-	//  Internal state
-	// -----------------------------------------------------------------
 
-	private final Settings settings = new Settings();
-	private final Random random = new Random();
-	private File lastSettingsFile;
-
-	/**
-	 * True while a PICL process is running. Drives Run/Stop button enable state.
-	 */
-	private final SimpleBooleanProperty running = new SimpleBooleanProperty(false);
-	/** The currently running process, or null. */
-	private Process currentProcess;
-
-	/**
-	 * Default location of the PICL binary. First tries to extract a
-	 * bundled binary from the JAR (works once the JAR has been built
-	 * with native/&lt;platform&gt;/picl resources); falls back to the
-	 * developer convention native/picl/src/picl in the project root
-	 * for IDE runs before the bundling step has happened.
-	 */
-	private static String resolveDefaultPiclExecutable() {
-		try {
-			return jpicl.util.PiclExtractor.resolveExecutable().toString();
-		} catch (Exception ex) {
-			return Paths.get(System.getProperty("user.dir"),
-					"native", "picl", "src", "picl").toString();
-		}
-	}
-
-	/** Default extension for the output tree (replaces the alignment extension). */
-	private static final String TREE_EXTENSION = ".tre";
-
-	/** Default extension for the settings file (replaces the output tree extension). */
-	private static final String SETTINGS_EXTENSION = ".settings";
-
-	/** Default extension for the tree-info file (renamed PICL "outtree.tre"). */
-	private static final String TREEINFO_EXTENSION = ".trees";
-
-	/** Default extension for the values file (uses the alignment basename). */
-	private static final String VALUES_EXTENSION = ".values";
-
-	/** Default extension for the log file (sibling of the output tree). */
-	private static final String LOG_EXTENSION = ".log";
-
-	/**
-	 * Default extension for the bootstrap file (sibling of the output tree).
-	 */
-	private static final String BOOTSTRAP_EXTENSION = ".bootstrap";
-
-	/** Writer to the per-run log file; null when no run is in flight. */
-	private BufferedWriter logFileWriter;
-
-	/** Last tree file path loaded into the Tree tab (null if none). */
-	private Path lastTreeFile;
-
-	/**
-	 * The output-tree path we last derived automatically from the alignment.
-	 * If the user-visible value still equals this, alignment changes will
-	 * re-derive it; if the user has typed something else, we leave it alone.
-	 */
-	private String lastAutoDerivedOutputTree = "";
-
-	/** Tree-info path written by picl in the most recent run; null if no run yet. */
-	private Path pendingTreeInfoPath;
-
-	/**
-	 * Output tree (.tre) path written by picl in the most recent run; null if no run yet.
-	 */
-	private Path pendingOutTreePath;
-
-	/**
-	 * Last successfully parsed tree root, retained so we can redraw on resize.
-	 */
-	private TreeNode lastDrawnTreeRoot;
-
-	/**
-	 * Output paths the user has explicitly approved overwriting in the most
-	 * recent change-time prompt. Tracked as a set of absolute paths so the
-	 * run-time re-check can tell "already consented" apart from "newly
-	 * appeared since consent" and only re-prompt when needed.
-	 */
-	private final Set<Path> overwriteConsentedPaths = new LinkedHashSet<>();
-
-	public Settings getSettings() { return settings; }
 
 	// =================================================================
-	//  Initialisation — called by FXMLLoader after fields are injected
+	//  Getters  (one per @FXML field, in declaration order)
 	// =================================================================
 
-	@FXML
-	public void initialize() {
-		configureChoiceBoxes();
-		configureTable();
-		configureEnableDisableBindings();
-		configureCountLabels();
-		configureFilesSection();
-		configureOutputTab();
-		configureTreeTab();
-		configureMenuBar();
-		wireButtonHandlers();
-
-		applyToUi(settings);   // populate with defaults
-		statusLabel.setText("Ready");
+	public Button getAlignmentBrowseButton() {
+		return alignmentBrowseButton;
 	}
 
-	// =================================================================
-	//  Menu bar wiring
-	// =================================================================
-
-	/**
-	 * Wires every File / Edit / View menu item. Many edit-menu items
-	 * forward to whichever TextInputControl currently has focus, so they
-	 * Just Work on whatever text field/area the user is in.
-	 */
-	private void configureMenuBar() {
-		// ----- File -----
-		newMenuItem.setOnAction(e -> onNew());
-		openMenuItem.setOnAction(this::onLoadSettings);   // alias for "Open…"
-		saveMenuItem.setOnAction(this::onSaveSettings);   // alias for "Save…"
-		printMenuItem.setOnAction(e -> onPrint());
-		pageSetupMenuItem.setOnAction(e -> onPageSetup());
-		closeMenuItem.setOnAction(e -> {
-			var stage = (Stage) menuBar.getScene().getWindow();
-			stage.close();
-		});
-		quitMenuItem.setOnAction(e -> Platform.exit());
-
-		// ----- Edit -----
-		// Forward to the focused TextInputControl. JavaFX text fields
-		// already handle the keyboard shortcuts natively; the menu items
-		// give the user a discoverable, click-driven path.
-		undoMenuItem.setOnAction(e -> onFocusedText(TextInputControl::undo));
-		redoMenuItem.setOnAction(e -> onFocusedText(TextInputControl::redo));
-		cutMenuItem.setOnAction(e -> onFocusedText(TextInputControl::cut));
-		copyMenuItem.setOnAction(e -> onFocusedText(TextInputControl::copy));
-		pasteMenuItem.setOnAction(e -> onFocusedText(TextInputControl::paste));
-		deleteMenuItem.setOnAction(e -> onFocusedText(TextInputControl::deleteNextChar));
-
-		// ----- View -----
-		// Full screen and Dark mode hooks need a Scene, which isn't
-		// available until the controls are attached to a window. Defer.
-		Platform.runLater(this::installSceneDependentMenuBindings);
-
-		// Tab radio items: keep the radio menu and the TabPane in sync.
-		settingsTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(settingsTab));
-		logTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(logTab));
-		outputTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(outputTab));
-		treeTabMenuItem.setOnAction(e -> mainTabPane.getSelectionModel().select(treeTab));
-
-		// And the reverse direction: when the tab changes (by any means),
-		// tick the matching radio item.
-		mainTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-			if (newTab == settingsTab) settingsTabMenuItem.setSelected(true);
-			else if (newTab == logTab) logTabMenuItem.setSelected(true);
-			else if (newTab == outputTab) outputTabMenuItem.setSelected(true);
-			else if (newTab == treeTab) treeTabMenuItem.setSelected(true);
-		});
-		// Set initial state.
-		settingsTabMenuItem.setSelected(true);
+	public TextField getAlignmentFileTextField() {
+		return alignmentFileTextField;
 	}
 
-	/** Bindings that need a live Scene (full-screen, dark mode, windows list). */
-	private void installSceneDependentMenuBindings() {
-		var scene = menuBar.getScene();
-		if (scene == null) return;
-		var stage = (Stage) scene.getWindow();
-		if (stage == null) return;
-
-		// Full screen: bidirectional with stage.fullScreenProperty.
-		fullScreenMenuItem.setSelected(stage.isFullScreen());
-		fullScreenMenuItem.setOnAction(e -> stage.setFullScreen(fullScreenMenuItem.isSelected()));
-		stage.fullScreenProperty().addListener((obs, was, now) -> fullScreenMenuItem.setSelected(now));
-
-		// Dark mode: flip Modena's `-fx-base` token on the scene root.
-		darkModeMenuItem.setOnAction(e -> applyDarkMode(scene, darkModeMenuItem.isSelected()));
-
-		// Windows section at the bottom of View. Replace this listener
-		// target with your custom static observable list if you don't
-		// want to use the JavaFX-wide one.
-		Window.getWindows().addListener((ListChangeListener<Window>) c ->
-				Platform.runLater(this::rebuildWindowsSection));
-		Platform.runLater(this::rebuildWindowsSection);  // initial fill
+	public Button getAutoDetectSpeciesByPrefixButton() {
+		return autoDetectSpeciesByPrefixButton;
 	}
 
-	/**
-	 * Marker placed in {@code MenuItem.userData} on every item the
-	 * windows-section rebuild owns. Used so we can wipe and recreate the
-	 * section on each change without disturbing the static menu items
-	 * above (Full Screen, Dark Mode, the tabs toggle group, etc.).
-	 */
-	private static final Object WINDOWS_SECTION_MARKER = new Object();
-
-	/**
-	 * Wipes and rebuilds the bottom section of the View menu so that it
-	 * lists every visible Stage with a non-blank title. Runs on the FX
-	 * thread (callers schedule it via {@link Platform#runLater}).
-	 */
-	private void rebuildWindowsSection() {
-		// Clear out whatever this method added on the previous run.
-		viewMenu.getItems().removeIf(item -> item.getUserData() == WINDOWS_SECTION_MARKER);
-
-		boolean addedSeparator = false;
-		for (var w : Window.getWindows()) {
-			if (!(w instanceof Stage stage)) continue;        // skip popups, tooltips, etc.
-			if (!stage.isShowing()) continue;
-			var title = stage.getTitle();
-			if (title == null || title.isBlank()) continue;
-
-			if (!addedSeparator) {
-				var sep = new SeparatorMenuItem();
-				sep.setUserData(WINDOWS_SECTION_MARKER);
-				viewMenu.getItems().add(sep);
-				addedSeparator = true;
-			}
-
-			var item = new MenuItem();
-			item.textProperty().bind(stage.titleProperty());  // live-update on title change
-			item.setUserData(WINDOWS_SECTION_MARKER);
-			item.setOnAction(e -> {
-				stage.toFront();
-				stage.requestFocus();
-			});
-			viewMenu.getItems().add(item);
-		}
+	public Label getBootstrapReplicatesHintLabel() {
+		return bootstrapReplicatesHintLabel;
 	}
 
-	private static void applyDarkMode(Scene scene, boolean dark) {
-		var root = scene.getRoot();
-		if (dark) {
-			root.setStyle("-fx-base: #2b2b2b; -fx-background: #2b2b2b;"
-						  + " -fx-control-inner-background: #2b2b2b;"
-						  + " -fx-text-base-color: #e8e8e8;");
-		} else {
-			root.setStyle("");
-		}
+	public TextField getBootstrapReplicatesTextField() {
+		return bootstrapReplicatesTextField;
 	}
 
-	/** Run an edit action against whichever TextInputControl currently has focus. */
-	private void onFocusedText(Consumer<TextInputControl> action) {
-		var scene = menuBar.getScene();
-		if (scene == null) return;
-		Node owner = scene.getFocusOwner();
-		if (owner instanceof TextInputControl tic) action.accept(tic);
+	public TitledPane getBootstrapSeedsOutputTitledPane() {
+		return bootstrapSeedsOutputTitledPane;
 	}
 
-	/** File → New: reset the dialog to default settings. */
-	private void onNew() {
-		jpicl.window.Window.createWindow(new Stage()).getStage().show();
+	public TextField getBranchLengthIterationsTextField() {
+		return branchLengthIterationsTextField;
 	}
 
-	/** File → Print: print the contents of the currently selected tab. */
-	private void onPrint() {
-		var node = nodeToPrint();
-		if (node == null) {
-			statusLabel.setText("Nothing to print.");
-			return;
-		}
-		var job = PrinterJob.createPrinterJob();
-		if (job == null) {
-			statusLabel.setText("No printer available.");
-			return;
-		}
-		var stage = menuBar.getScene().getWindow();
-		if (job.showPrintDialog(stage) && job.printPage(node)) {
-			job.endJob();
-			statusLabel.setText("Printed.");
-		}
+	public ChoiceBox<Settings.BranchLengthMethod> getBranchLengthMethodChoiceBox() {
+		return branchLengthMethodChoiceBox;
 	}
 
-	/** File → Page Setup. */
-	private void onPageSetup() {
-		var job = PrinterJob.createPrinterJob();
-		if (job == null) {
-			statusLabel.setText("No printer available.");
-			return;
-		}
-		job.showPageSetupDialog(menuBar.getScene().getWindow());
+	public Label getBranchLengthOptimisationHintLabel() {
+		return branchLengthOptimisationHintLabel;
 	}
 
-	/** Pick a sensible node to print based on the currently selected tab. */
-	private Node nodeToPrint() {
-		var sel = mainTabPane.getSelectionModel().getSelectedItem();
-		if (sel == logTab) return logTabTextArea;
-		if (sel == outputTab) return outputTextArea;
-		return mainTabPane;   // Settings tab — print the whole pane
+	public TitledPane getBranchLengthOptimisationTitledPane() {
+		return branchLengthOptimisationTitledPane;
 	}
 
-	/**
-	 * Wires the alignment ⇒ output-tree ⇒ settings-path derivation chain
-	 * at the top of the Settings tab.
-	 */
-	private void configureFilesSection() {
-		// When the alignment changes, re-derive the output tree path —
-		// but only if the user hasn't customized it (i.e. it still matches
-		// whatever we last auto-derived). Also refresh the Values label.
-		alignmentFileTextField.textProperty().addListener((obs, oldVal, newVal) -> {
-			var derived = deriveOutputTreePath(newVal);
-			var current = outTreeFileTextField.getText();
-			if (current == null || current.isBlank()
-				|| current.equals(lastAutoDerivedOutputTree)) {
-				outTreeFileTextField.setText(derived);
-			}
-			lastAutoDerivedOutputTree = derived;
-			valuesPathLabel.setText(deriveValuesPath(newVal));
-		});
-
-		// Settings, trees, log, and bootstrap labels all track the
-		// output-tree path live.
-		outTreeFileTextField.textProperty().addListener((obs, oldVal, newVal) -> {
-			settingsPathLabel.setText(deriveSettingsPath(newVal));
-			treesPathLabel.setText(deriveTreeInfoPath(newVal));
-			logPathLabel.setText(deriveLogPath(newVal));
-			bootstrapPathLabel.setText(deriveBootstrapPath(newVal));
-		});
-
-		// Overwrite-existence check: fire when the user *commits* a value
-		// (focus loss), not on every keystroke. Browse buttons set the
-		// field text directly without changing focus, so we also call the
-		// check explicitly from the Browse handlers (see wireButtonHandlers).
-		alignmentFileTextField.focusedProperty().addListener((obs, was, is) -> {
-			if (was && !is) promptOverwriteIfNeeded();
-		});
-		outTreeFileTextField.focusedProperty().addListener((obs, was, is) -> {
-			if (was && !is) promptOverwriteIfNeeded();
-		});
+	public Button getCancelButton() {
+		return cancelButton;
 	}
 
-	/** alignment "/path/foo.phy" → "/path/foo.tre". Empty input → empty result. */
-	private static String deriveOutputTreePath(String alignmentPath) {
-		if (alignmentPath == null || alignmentPath.isBlank()) return "";
-		var p = Paths.get(alignmentPath);
-		return p.resolveSibling(stripExtension(p.getFileName().toString()) + TREE_EXTENSION)
-				.toString();
+	public Label getCoolingRateHintLabel() {
+		return coolingRateHintLabel;
 	}
 
-	/** outputTree "/path/foo.tre" → "/path/foo.settings". Empty input → "(none)". */
-	private static String deriveSettingsPath(String outputTreePath) {
-		return deriveSiblingPath(outputTreePath, SETTINGS_EXTENSION);
+	public TextField getCoolingRateTextField() {
+		return coolingRateTextField;
 	}
 
-	/** outputTree "/path/foo.tre" → "/path/foo.trees". Empty input → "(none)". */
-	private static String deriveTreeInfoPath(String outputTreePath) {
-		return deriveSiblingPath(outputTreePath, TREEINFO_EXTENSION);
+	public Label getGammaCategoriesHintLabel() {
+		return gammaCategoriesHintLabel;
 	}
 
-	/** alignment "/path/foo.phy" → "/path/foo.values". Empty input → "(none)". */
-	private static String deriveValuesPath(String alignmentPath) {
-		return deriveSiblingPath(alignmentPath, VALUES_EXTENSION);
+	public TextField getGammaCategoriesTextField() {
+		return gammaCategoriesTextField;
 	}
 
-	/** outputTree "/path/foo.tre" → "/path/foo.log". Empty input → "(none)". */
-	private static String deriveLogPath(String outputTreePath) {
-		return deriveSiblingPath(outputTreePath, LOG_EXTENSION);
+	public Label getGammaRateHintLabel() {
+		return gammaRateHintLabel;
 	}
 
-	/**
-	 * outputTree "/path/foo.tre" → "/path/foo.bootstrap". Empty input → "(none)".
-	 */
-	private static String deriveBootstrapPath(String outputTreePath) {
-		return deriveSiblingPath(outputTreePath, BOOTSTRAP_EXTENSION);
+	public TextField getGammaRateTextField() {
+		return gammaRateTextField;
 	}
 
-	/** Replaces the extension on a path, or returns "(none)" for blank input. */
-	private static String deriveSiblingPath(String filePath, String newExtension) {
-		if (filePath == null || filePath.isBlank()) return "(none)";
-		var p = Paths.get(filePath);
-		return p.resolveSibling(stripExtension(p.getFileName().toString()) + newExtension)
-				.toString();
+	public RadioButton getGenerateRandomTreeRadioButton() {
+		return generateRandomTreeRadioButton;
 	}
 
-	/** "foo.phy" → "foo"; "foo" → "foo"; ".bashrc" → ".bashrc". */
-	private static String stripExtension(String filename) {
-		int dot = filename.lastIndexOf('.');
-		return (dot <= 0) ? filename : filename.substring(0, dot);
+	public Button getImportSpeciesMappingButton() {
+		return importSpeciesMappingButton;
 	}
 
-	// =================================================================
-	//  Overwrite checking (.tre, .trees, .log, .bootstrap, .values)
-	// =================================================================
-
-	/**
-	 * Returns the absolute paths of every file PICL or this controller
-	 * would write on the next run, given the current alignment and
-	 * output-tree text fields. Skips blanks and the "(none)" sentinel
-	 * the derive helpers return for empty input. Note that .values
-	 * derives from the alignment path, not the output-tree path.
-	 */
-	private List<Path> collectOutputPaths() {
-		var alignment = alignmentFileTextField.getText();
-		var outTree = outTreeFileTextField.getText();
-		var paths = new ArrayList<Path>();
-		addPathIfReal(paths, outTree);                        // .tre
-		addPathIfReal(paths, deriveTreeInfoPath(outTree));    // .trees
-		addPathIfReal(paths, deriveLogPath(outTree));         // .log
-		addPathIfReal(paths, deriveBootstrapPath(outTree));   // .bootstrap
-		addPathIfReal(paths, deriveValuesPath(alignment));    // .values
-		return paths;
+	public CheckBox getIncludeAllSitesCheckBox() {
+		return includeAllSitesCheckBox;
 	}
 
-	private static void addPathIfReal(List<Path> out, String s) {
-		if (s != null && !s.isBlank() && !"(none)".equals(s)) {
-			out.add(Paths.get(s).toAbsolutePath().normalize());
-		}
+	public TableColumn<Settings.LineageAssignment, Integer> getLineageIndexColumn() {
+		return lineageIndexColumn;
 	}
 
-	/**
-	 * If any of the would-be-written output files already exist on disk,
-	 * ask the user whether to overwrite. On "Yes", remembers consent so
-	 * the run-time re-check can stay quiet. On "No", clears the
-	 * output-tree text field as the simplest way to back the user out.
-	 * <p>
-	 * Called on focus loss from the alignment / output-tree fields, and
-	 * after the corresponding Browse buttons commit a value.
-	 */
-	private void promptOverwriteIfNeeded() {
-		var existing = collectOutputPaths().stream()
-				.filter(Files::exists)
-				.toList();
-		if (existing.isEmpty()) {
-			overwriteConsentedPaths.clear();
-			return;
-		}
-
-		var msg = new StringBuilder("These output files already exist:\n\n");
-		for (var p : existing) msg.append("  • ").append(p).append('\n');
-		msg.append("\nOverwrite them when you press Run?");
-
-		var alert = new Alert(Alert.AlertType.CONFIRMATION, msg.toString(),
-				ButtonType.YES, ButtonType.NO);
-		alert.setHeaderText("Existing files");
-		alert.setTitle("Overwrite existing output files?");
-		var owner = alignmentFileTextField.getScene() != null
-				? alignmentFileTextField.getScene().getWindow() : null;
-		if (owner != null) alert.initOwner(owner);
-
-		Optional<ButtonType> choice = alert.showAndWait();
-		if (choice.isPresent() && choice.get() == ButtonType.YES) {
-			overwriteConsentedPaths.clear();
-			overwriteConsentedPaths.addAll(existing);
-		} else {
-			overwriteConsentedPaths.clear();
-			outTreeFileTextField.clear();
-			statusLabel.setText("Cleared output tree to avoid overwriting existing files.");
-		}
+	public TableColumn<Settings.LineageAssignment, String> getLineageNameColumn() {
+		return lineageNameColumn;
 	}
 
-	/**
-	 * Run-time re-check: returns true if the run should proceed, false to
-	 * abort. If files exist that the user previously consented to, they
-	 * are deleted silently. If new files have appeared since consent (or
-	 * consent was never given), re-prompts the user.
-	 */
-	private boolean confirmAndDeleteExistingOutputs() {
-		var existing = collectOutputPaths().stream()
-				.filter(Files::exists)
-				.toList();
-		if (existing.isEmpty()) return true;
-
-		// Anything in `existing` not already covered by prior consent
-		// triggers a re-prompt; otherwise we trust the earlier "Yes".
-		var unconsented = existing.stream()
-				.filter(p -> !overwriteConsentedPaths.contains(p))
-				.toList();
-		if (!unconsented.isEmpty()) {
-			var msg = new StringBuilder("These output files exist and will be deleted before PICL runs:\n\n");
-			for (var p : existing) msg.append("  • ").append(p).append('\n');
-			msg.append("\nProceed?");
-
-			var alert = new Alert(Alert.AlertType.CONFIRMATION, msg.toString(),
-					ButtonType.YES, ButtonType.NO);
-			alert.setHeaderText("Existing output files");
-			alert.setTitle("Overwrite existing output files?");
-			var owner = runPiclButton.getScene() != null
-					? runPiclButton.getScene().getWindow() : null;
-			if (owner != null) alert.initOwner(owner);
-
-			Optional<ButtonType> choice = alert.showAndWait();
-			if (choice.isEmpty() || choice.get() != ButtonType.YES) {
-				statusLabel.setText("Run cancelled — existing output files were not overwritten.");
-				return false;
-			}
-			overwriteConsentedPaths.addAll(existing);
-		}
-
-		// Delete what's there. PICL appends to some files and overwrites
-		// others, so a clean slate is the only way to be sure of results.
-		for (var p : existing) {
-			try {
-				Files.deleteIfExists(p);
-			} catch (IOException ex) {
-				statusLabel.setText("Could not delete " + p.getFileName() + ": " + ex.getMessage());
-				return false;
-			}
-		}
-		return true;
+	public TableView<Settings.LineageAssignment> getLineageSpeciesTableView() {
+		return lineageSpeciesTableView;
 	}
 
-	/** Sets defaults and bindings for controls in the Output tab. */
-	private void configureOutputTab() {
-		piclExecutableTextField.setText(resolveDefaultPiclExecutable());
-
-		// Disable Run while running OR while no alignment has been set.
-		// Stop is the inverse — only enabled while a process is alive.
-		runPiclButton.disableProperty().bind(
-				running.or(alignmentFileTextField.textProperty().isEmpty()));
-		stopRunButton.disableProperty().bind(running.not());
-
-		// Empty Output → Clear/Copy disabled.
-		clearOutputButton.disableProperty().bind(logTabTextArea.textProperty().isEmpty());
-		copyOutputButton.disableProperty().bind(logTabTextArea.textProperty().isEmpty());
-
-		// Indeterminate progress bar visible only while a run is in flight.
-		runProgressBar.setProgress(-1.0);                            // indeterminate ("barber pole")
-		runProgressBar.visibleProperty().bind(running);
-		runProgressBar.managedProperty().bind(running);              // collapse layout when hidden
-
-		runStatusLabel.setText("Idle");
-
-		// Tree-tab buttons disabled until a tree is loaded.
-		copyTreeButton.disableProperty().bind(outputTextArea.textProperty().isEmpty());
-		saveTreeAsButton.disableProperty().bind(outputTextArea.textProperty().isEmpty());
+	public Label getLineagesCountLabel() {
+		return lineagesCountLabel;
 	}
 
-	// -----------------------------------------------------------------
-	//  ChoiceBox population
-	// -----------------------------------------------------------------
-
-	private void configureChoiceBoxes() {
-		modelChoiceBox.setItems(FXCollections.observableArrayList(Settings.Model.values()));
-
-		// Show only implemented branch-length methods. The hint label below
-		// already explains that numerical derivatives are unavailable.
-		modelChoiceBox.setTooltip(new Tooltip("Substitution / coalescent model"));
-
-		var branchLengthMethods = FXCollections.observableArrayList(Settings.BranchLengthMethod.values());
-		branchLengthMethodChoiceBox.setItems(branchLengthMethods);
-		// ChoiceBox doesn't support per-item disabling out of the box; if the
-		// user picks the not-implemented one we revert to UPHILL.
-		branchLengthMethodChoiceBox.valueProperty().addListener((obs, prev, next) -> {
-			if (next != null && !next.isImplemented()) {
-				branchLengthMethodChoiceBox.setValue(Settings.BranchLengthMethod.UPHILL);
-				statusLabel.setText(next.displayName() + " is not implemented in PICL.");
-			}
-		});
-
-		treeSearchMethodChoiceBox.setItems(
-				FXCollections.observableArrayList(Settings.TreeSearchMethod.values()));
+	public Button getLoadSettingsButton() {
+		return loadSettingsButton;
 	}
 
-	// -----------------------------------------------------------------
-	//  Species / lineage table
-	// -----------------------------------------------------------------
-
-	private void configureTable() {
-		lineageIndexColumn.setCellValueFactory(c ->
-				new SimpleObjectProperty<>(c.getValue().getIndex()));
-		lineageNameColumn.setCellValueFactory(c ->
-				new SimpleObjectProperty<>(c.getValue().getLineage()));
-		speciesAssignmentColumn.setCellValueFactory(c ->
-				new SimpleObjectProperty<>(c.getValue().getSpecies()));
-
-		// Species column: dropdown bound to the live species list from the
-		// settings file. Falls back to free-text editing if the species list
-		// is empty (e.g., before any file has been loaded).
-		speciesAssignmentColumn.setCellFactory(col ->
-				settings.getSpecies().isEmpty()
-						? TextFieldTableCell.<Settings.LineageAssignment>forTableColumn().call(col)
-						: ChoiceBoxTableCell.<Settings.LineageAssignment, String>forTableColumn(
-						settings.getSpecies()).call(col));
-		// Refresh cell factory when the species list transitions empty ↔ non-empty.
-		settings.getSpecies().addListener((javafx.collections.ListChangeListener<String>) c ->
-				lineageSpeciesTableView.refresh());
-		speciesAssignmentColumn.setOnEditCommit(e -> {
-			e.getRowValue().setSpecies(e.getNewValue());
-			updateCountLabels();
-		});
-
-		lineageSpeciesTableView.setEditable(true);
-		lineageSpeciesTableView.setItems(settings.getLineageAssignments());
+	public TitledPane getModelAndDataTitledPane() {
+		return modelAndDataTitledPane;
 	}
 
-	// -----------------------------------------------------------------
-	//  Enable / disable dependencies
-	// -----------------------------------------------------------------
-
-	private void configureEnableDisableBindings() {
-		// Gamma rate / categories live only in the CIS+gamma model.
-		var notGamma = modelChoiceBox.valueProperty()
-				.isNotEqualTo(Settings.Model.CIS_GAMMA);
-		gammaRateTextField.disableProperty().bind(notGamma);
-		gammaRateHintLabel.disableProperty().bind(notGamma);
-		gammaCategoriesTextField.disableProperty().bind(notGamma);
-		gammaCategoriesHintLabel.disableProperty().bind(notGamma);
-
-		// Tree-file row is only meaningful when reading from a tree file.
-		var notFromFile = readFromTreeFileRadioButton.selectedProperty().not();
-		treeFileTextField.disableProperty().bind(notFromFile);
-		treeFileBrowseButton.disableProperty().bind(notFromFile);
-		useBranchLengthsFromTreeCheckBox.disableProperty().bind(notFromFile);
-
-		// Cooling rate β is used only by simulated-annealing NNI.
-		var notSA = treeSearchMethodChoiceBox.valueProperty()
-				.isNotEqualTo(Settings.TreeSearchMethod.SA_NNI);
-		coolingRateTextField.disableProperty().bind(notSA);
-		coolingRateHintLabel.disableProperty().bind(notSA);
+	public ChoiceBox<Settings.Model> getModelChoiceBox() {
+		return modelChoiceBox;
 	}
 
-	// -----------------------------------------------------------------
-	//  Count labels in the species/lineages section
-	// -----------------------------------------------------------------
-
-	private void configureCountLabels() {
-		// Lineages count = number of rows in the table.
-		lineagesCountLabel.textProperty().bind(
-				Bindings.size(settings.getLineageAssignments()).asString("%d lineages"));
-		updateCountLabels();
-		// Species count: distinct non-blank species names. Recompute on changes.
-		settings.getLineageAssignments().addListener(
-				(javafx.collections.ListChangeListener<Settings.LineageAssignment>) c -> updateCountLabels());
+	public Button getPreviewSettingsButton() {
+		return previewSettingsButton;
 	}
 
-	private void updateCountLabels() {
-		// Prefer the explicit species list (from the settings file); fall back
-		// to the distinct non-blank species in the assignments.
-		int count = settings.getSpecies().isEmpty()
-				? (int) settings.getLineageAssignments().stream()
-				.map(Settings.LineageAssignment::getSpecies)
-				.filter(s -> s != null && !s.isBlank())
-				.distinct().count()
-				: settings.getSpecies().size();
-		speciesCountLabel.setText(count + " species");
+	public TextField getRandomSeed1TextField() {
+		return randomSeed1TextField;
 	}
 
-	// -----------------------------------------------------------------
-	//  Button wiring
-	// -----------------------------------------------------------------
-
-	private void wireButtonHandlers() {
-		loadSettingsButton.setOnAction(this::onLoadSettings);
-		saveSettingsButton.setOnAction(this::onSaveSettings);
-
-		alignmentBrowseButton.setOnAction(e -> {
-			browseForFile(alignmentFileTextField, "Phylip alignment",
-					"*.phy", "*.phylip");
-			promptOverwriteIfNeeded();
-		});
-		outTreeFileBrowseButton.setOnAction(e -> {
-			browseForSaveFile(outTreeFileTextField, "Newick tree",
-					"*.tre", "*.tree", "*.nwk", "*.newick");
-			promptOverwriteIfNeeded();
-		});
-		treeFileBrowseButton.setOnAction(e -> browseForFile(
-				treeFileTextField, "Tree files",
-				"*.tre", "*.tree", "*.nwk", "*.newick", "*.nex", "*.nxs"));
-
-		randomiseSeed1Button.setOnAction(e -> randomSeed1TextField.setText(Long.toString(nextSeed())));
-		randomiseSeed2Button.setOnAction(e -> randomSeed2TextField.setText(Long.toString(nextSeed())));
-
-		cancelButton.setOnAction(this::onCancel);
-		validateButton.setOnAction(this::onValidate);
-		previewSettingsButton.setOnAction(this::onPreview);
-		runPiclButton.setOnAction(this::onRunPicl);
-
-		autoDetectSpeciesByPrefixButton.setOnAction(this::onAutoDetectSpeciesByPrefix);
-		importSpeciesMappingButton.setOnAction(this::onImportSpeciesMapping);
-
-		piclExecutableBrowseButton.setOnAction(e -> browseForFile(
-				piclExecutableTextField, "Executable", "*"));
-		clearOutputButton.setOnAction(e -> logTabTextArea.clear());
-		copyOutputButton.setOnAction(this::onCopyOutput);
-		stopRunButton.setOnAction(this::onStopRun);
-
-		reloadTreeButton.setOnAction(this::onReloadTree);
-		copyTreeButton.setOnAction(this::onCopyTree);
-		saveTreeAsButton.setOnAction(this::onSaveTreeAs);
+	public TextField getRandomSeed2TextField() {
+		return randomSeed2TextField;
 	}
 
-	// =================================================================
-	//  UI ⇄ Settings synchronisation
-	// =================================================================
-
-	/** Push values from a Settings instance into the UI. */
-	public void applyToUi(Settings s) {
-		modelChoiceBox.setValue(s.getModel());
-		alignmentFileTextField.setText(s.getAlignmentFile());
-		includeAllSitesCheckBox.setSelected(s.isIncludeAllSites());
-		thetaTextField.setText(Double.toString(s.getTheta()));
-		gammaRateTextField.setText(Double.toString(s.getGammaRate()));
-		gammaCategoriesTextField.setText(Integer.toString(s.getGammaCategories()));
-
-		if (s.getStartingTreeSource() == Settings.StartingTreeSource.READ_FROM_FILE)
-			readFromTreeFileRadioButton.setSelected(true);
-		else
-			generateRandomTreeRadioButton.setSelected(true);
-		treeFileTextField.setText(s.getTreeFile());
-		useBranchLengthsFromTreeCheckBox.setSelected(s.isUseBranchLengthsFromTree());
-
-		branchLengthMethodChoiceBox.setValue(s.getBranchLengthMethod());
-		branchLengthIterationsTextField.setText(Long.toString(s.getBranchLengthIterations()));
-
-		treeSearchMethodChoiceBox.setValue(s.getTreeSearchMethod());
-		treeSearchIterationsTextField.setText(Long.toString(s.getTreeSearchIterations()));
-		coolingRateTextField.setText(Double.toString(s.getCoolingRate()));
-
-		bootstrapReplicatesTextField.setText(Integer.toString(s.getBootstrapReplicates()));
-		verboseOutputCheckBox.setSelected(s.isVerboseOutput());
-		randomSeed1TextField.setText(Long.toString(s.getRandomSeed1()));
-		randomSeed2TextField.setText(Long.toString(s.getRandomSeed2()));
-
-		// Replace the table contents only if the incoming Settings has its own list.
-		if (s != this.settings) {
-			settings.getLineageAssignments().setAll(s.getLineageAssignments());
-		}
-		updateCountLabels();
+	public Button getRandomiseSeed1Button() {
+		return randomiseSeed1Button;
 	}
 
-	/** Read the UI back into the given Settings instance. */
-	public void pullFromUi(Settings s) {
-		s.setModel(modelChoiceBox.getValue());
-		s.setAlignmentFile(alignmentFileTextField.getText());
-		s.setIncludeAllSites(includeAllSitesCheckBox.isSelected());
-		s.setTheta(parseDouble(thetaTextField, s.getTheta()));
-		s.setGammaRate(parseDouble(gammaRateTextField, s.getGammaRate()));
-		s.setGammaCategories(parseInt(gammaCategoriesTextField, s.getGammaCategories()));
-
-		s.setStartingTreeSource(readFromTreeFileRadioButton.isSelected()
-				? Settings.StartingTreeSource.READ_FROM_FILE
-				: Settings.StartingTreeSource.GENERATE_RANDOM);
-		s.setTreeFile(treeFileTextField.getText());
-		s.setUseBranchLengthsFromTree(useBranchLengthsFromTreeCheckBox.isSelected());
-
-		s.setBranchLengthMethod(branchLengthMethodChoiceBox.getValue());
-		s.setBranchLengthIterations(parseLong(branchLengthIterationsTextField, s.getBranchLengthIterations()));
-
-		s.setTreeSearchMethod(treeSearchMethodChoiceBox.getValue());
-		s.setTreeSearchIterations(parseLong(treeSearchIterationsTextField, s.getTreeSearchIterations()));
-		s.setCoolingRate(parseDouble(coolingRateTextField, s.getCoolingRate()));
-
-		s.setBootstrapReplicates(parseInt(bootstrapReplicatesTextField, s.getBootstrapReplicates()));
-		s.setVerboseOutput(verboseOutputCheckBox.isSelected());
-		s.setRandomSeed1(parseLong(randomSeed1TextField, s.getRandomSeed1()));
-		s.setRandomSeed2(parseLong(randomSeed2TextField, s.getRandomSeed2()));
-		// Lineage assignments are already shared via the ObservableList.
+	public Button getRandomiseSeed2Button() {
+		return randomiseSeed2Button;
 	}
 
-	// =================================================================
-	//  Action handlers
-	// =================================================================
-
-	private void onLoadSettings(ActionEvent e) {
-		var chooser = new FileChooser();
-		chooser.setTitle("Load PICL settings");
-		chooser.getExtensionFilters().add(
-				new FileChooser.ExtensionFilter("PICL settings", "*.txt", "*.cfg", "*.settings", "*"));
-		if (lastSettingsFile != null && lastSettingsFile.getParentFile() != null)
-			chooser.setInitialDirectory(lastSettingsFile.getParentFile());
-		var file = chooser.showOpenDialog(window());
-		if (file == null) return;
-		try {
-			var loaded = Settings.read(file.toPath());
-			applyToUi(loaded);
-			// Copy scalar state back into our authoritative `settings` instance.
-			pullFromUi(this.settings);
-			settings.getSpecies().setAll(loaded.getSpecies());
-			settings.getLineageAssignments().setAll(loaded.getLineageAssignments());
-			lastSettingsFile = file;
-			statusLabel.setText("Loaded " + file.getName()
-								+ " · " + loaded.getSpecies().size() + " species, "
-								+ loaded.getLineageAssignments().size() + " lineages");
-		} catch (Exception ex) {
-			error("Could not load settings", ex);
-		}
+	public RadioButton getReadFromTreeFileRadioButton() {
+		return readFromTreeFileRadioButton;
 	}
 
-	private void onSaveSettings(ActionEvent e) {
-		var chooser = new FileChooser();
-		chooser.setTitle("Save PICL settings");
-		chooser.getExtensionFilters().add(
-				new FileChooser.ExtensionFilter("PICL settings", "*.txt", "*.cfg", "*.settings"));
-		if (lastSettingsFile != null) {
-			chooser.setInitialDirectory(lastSettingsFile.getParentFile());
-			chooser.setInitialFileName(lastSettingsFile.getName());
-		} else {
-			chooser.setInitialFileName("picl.settings");
-		}
-		var file = chooser.showSaveDialog(window());
-		if (file == null) return;
-		try {
-			pullFromUi(settings);
-			settings.write(file.toPath());
-			lastSettingsFile = file;
-			statusLabel.setText("Saved " + file.getName());
-		} catch (Exception ex) {
-			error("Could not save settings", ex);
-		}
+	public Button getRunPiclButton() {
+		return runPiclButton;
 	}
 
-	private void browseForFile(TextField target, String description, String... patterns) {
-		var chooser = new FileChooser();
-		chooser.setTitle("Choose file");
-		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(description, patterns));
-		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All files", "*"));
-		var current = target.getText();
-		if (current != null && !current.isBlank()) {
-			var f = new File(current);
-			if (f.getParentFile() != null && f.getParentFile().isDirectory())
-				chooser.setInitialDirectory(f.getParentFile());
-			chooser.setInitialFileName(f.getName());
-		}
-		var file = chooser.showOpenDialog(window());
-		if (file != null) target.setText(file.getAbsolutePath());
+	public Button getSaveSettingsButton() {
+		return saveSettingsButton;
 	}
 
-	private void browseForSaveFile(TextField target, String description, String... patterns) {
-		var chooser = new FileChooser();
-		chooser.setTitle("Choose file");
-		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(description, patterns));
-		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All files", "*"));
-		var current = target.getText();
-		if (current != null && !current.isBlank()) {
-			var f = new File(current);
-			if (f.getParentFile() != null && f.getParentFile().isDirectory())
-				chooser.setInitialDirectory(f.getParentFile());
-			chooser.setInitialFileName(f.getName());
-		}
-		var file = chooser.showSaveDialog(window());
-		if (file != null) target.setText(file.getAbsolutePath());
+	public TitledPane getSpeciesAndLineagesTitledPane() {
+		return speciesAndLineagesTitledPane;
 	}
 
-	private void onCancel(ActionEvent e) {
-		// Cancel halts a running picl process. It does NOT close the
-		// window — the user can still review the log, edit settings,
-		// or relaunch. If picl isn't running, this is a no-op.
-		if (currentProcess == null || !currentProcess.isAlive()) {
-			statusLabel.setText("Nothing to cancel — picl isn't running.");
-			return;
-		}
-		onStopRun(e);
+	public TableColumn<Settings.LineageAssignment, String> getSpeciesAssignmentColumn() {
+		return speciesAssignmentColumn;
 	}
 
-	private void onValidate(ActionEvent e) {
-		pullFromUi(settings);
-		var problems = settings.validate();
-		if (problems.isEmpty()) {
-			statusLabel.setText("Settings OK · " + settings.getLineageAssignments().size() + " lineages");
-			new Alert(Alert.AlertType.INFORMATION, "Settings look good.", ButtonType.OK).showAndWait();
-		} else {
-			statusLabel.setText(problems.size() + " problem(s) found");
-			var msg = String.join("\n• ", problems);
-			new Alert(Alert.AlertType.WARNING, "• " + msg, ButtonType.OK).showAndWait();
-		}
+	public Label getSpeciesCountLabel() {
+		return speciesCountLabel;
 	}
 
-	private void onPreview(ActionEvent e) {
-		pullFromUi(settings);
-		var area = new TextArea(settings.preview());
-		area.setEditable(false);
-		area.setPrefRowCount(24);
-		area.setPrefColumnCount(60);
-		area.setStyle("-fx-font-family: 'monospace';");
-		var dialog = new Alert(Alert.AlertType.NONE, null, ButtonType.CLOSE);
-		dialog.setTitle("Settings preview");
-		dialog.setHeaderText("Settings file as it will be written");
-		dialog.getDialogPane().setContent(new VBox(area));
-		dialog.showAndWait();
+	public TitledPane getStartingTreeTitledPane() {
+		return startingTreeTitledPane;
 	}
 
-	private void onRunPicl(ActionEvent e) {
-		pullFromUi(settings);
-
-		var problems = settings.validate();
-		if (!problems.isEmpty()) {
-			statusLabel.setText("Cannot run — " + problems.size() + " problem(s)");
-			new Alert(Alert.AlertType.WARNING,
-					"Fix these first:\n• " + String.join("\n• ", problems),
-					ButtonType.OK).showAndWait();
-			return;
-		}
-
-		// Re-check for existing output files and delete them up-front.
-		// PICL appends to some files and overwrites others, so a clean
-		// slate is the only way to be sure the run's output isn't a mix
-		// of stale and fresh data. Returns false if the user cancels.
-		if (!confirmAndDeleteExistingOutputs()) {
-			return;
-		}
-
-		// Resolve the PICL executable.
-		var execPath = Paths.get(piclExecutableTextField.getText().trim());
-		if (!Files.isExecutable(execPath)) {
-			new Alert(Alert.AlertType.ERROR,
-					"PICL executable not found or not executable:\n" + execPath,
-					ButtonType.OK).showAndWait();
-			return;
-		}
-
-		// Resolve the alignment file. PICL will fopen() it directly.
-		var alignmentText = alignmentFileTextField.getText().trim();
-		if (alignmentText.isBlank()) {
-			new Alert(Alert.AlertType.ERROR,
-					"Please choose an alignment file first.",
-					ButtonType.OK).showAndWait();
-			return;
-		}
-		var alignmentPath = Paths.get(alignmentText).toAbsolutePath();
-		if (!Files.isReadable(alignmentPath)) {
-			new Alert(Alert.AlertType.ERROR,
-					"Alignment file not found or not readable:\n" + alignmentPath,
-					ButtonType.OK).showAndWait();
-			return;
-		}
-
-		// Resolve the picltrees.tre path (the user-controlled "Output tree").
-		var outTreeText = outTreeFileTextField.getText().trim();
-		if (outTreeText.isBlank())
-			outTreeText = deriveOutputTreePath(alignmentPath.toString());
-		var picltreesPath = Paths.get(outTreeText).toAbsolutePath();
-
-		// Auto-derived siblings.
-		var settingsPath = Paths.get(deriveSettingsPath(picltreesPath.toString()));
-		var treesPath = Paths.get(deriveTreeInfoPath(picltreesPath.toString()));
-		var valuesPath = Paths.get(deriveValuesPath(alignmentPath.toString()));
-		var logPath = Paths.get(deriveLogPath(picltreesPath.toString()));
-		var bootstrapPath = Paths.get(deriveBootstrapPath(picltreesPath.toString()));
-
-		// Starting tree file — only consulted by PICL when Random_tree=0.
-		// Pass the user's text-field value (resolved); falls back to a
-		// sibling of the alignment if blank, so PICL still gets a path.
-		var treeFileText = treeFileTextField.getText().trim();
-		Path treeFilePath;
-		if (treeFileText.isBlank()) {
-			treeFilePath = alignmentPath.resolveSibling("treefile.tre");
-		} else {
-			var tfp = Paths.get(treeFileText);
-			treeFilePath = tfp.isAbsolute()
-					? tfp
-					: alignmentPath.resolveSibling(tfp).toAbsolutePath();
-		}
-
-		try {
-			settings.write(settingsPath);
-		} catch (IOException ex) {
-			error("Could not write settings file", ex);
-			return;
-		}
-
-		// Run picl with cwd = the alignment's directory.
-		var workDir = alignmentPath.getParent() != null
-				? alignmentPath.getParent().toFile()
-				: new File(System.getProperty("user.dir"));
-
-		// Switch the user to the Log tab and clear previous output.
-		mainTabPane.getSelectionModel().select(logTab);
-		logTabTextArea.clear();
-
-		// Open the log file before any appendOutput call so the header
-		// and command line make it into the .log file too.
-		try {
-			logFileWriter = Files.newBufferedWriter(logPath);
-		} catch (IOException ex) {
-			logFileWriter = null;
-			statusLabel.setText("Could not open log file: " + ex.getMessage());
-			// Continue without logging to disk — the Log tab still shows output.
-		}
-
-		appendOutput("$ " + execPath
-					 + " " + settingsPath
-					 + " " + alignmentPath
-					 + " " + treeFilePath
-					 + " " + treesPath
-					 + " " + picltreesPath
-					 + " " + valuesPath
-					 + " " + bootstrapPath + "\n");
-		appendOutput("(working directory: " + workDir + ")\n");
-		appendOutput("(log file:          " + logPath + ")\n\n");
-
-		// The C side accepts up to 7 positional args:
-		//   argv[1] = settings
-		//   argv[2] = data.phy (alignment)
-		//   argv[3] = treefile.tre (input starting tree, if Random_tree=0)
-		//   argv[4] = outtree.tre (renamed to <output>.trees)
-		//   argv[5] = picltrees.tre (the user's Output tree — Newick only)
-		//   argv[6] = values (PICL's "results" arg slot)
-		//   argv[7] = bootstrap (<output-base>.bootstrap)
-		var pb = new ProcessBuilder(
-				execPath.toString(),
-				settingsPath.toString(),
-				alignmentPath.toString(),
-				treeFilePath.toString(),
-				treesPath.toString(),
-				picltreesPath.toString(),
-				valuesPath.toString(),
-				bootstrapPath.toString())
-				.directory(workDir)
-				.redirectErrorStream(true);
-
-		// Remember the .trees path so onProcessExited can load it into
-		// the Trees tab — that file contains the trees PICL wrote (in
-		// mutation and coalescent units), with section headers.
-		this.pendingTreeInfoPath = treesPath;
-
-		// Remember the .tre path (the user's "Output tree", a plain Newick
-		// file) so onProcessExited can draw it into the Tree tab.
-		this.pendingOutTreePath = picltreesPath;
-		try {
-			currentProcess = pb.start();
-		} catch (IOException ex) {
-			error("Could not launch PICL", ex);
-			return;
-		}
-
-		running.set(true);
-		runStatusLabel.setText("Running…");
-		statusLabel.setText("PICL is running");
-
-		var process = currentProcess;
-		var reader = new Thread(() -> streamProcessOutput(process), "picl-output-reader");
-		reader.setDaemon(true);
-		reader.start();
+	public ToggleGroup getStartingTreeToggleGroup() {
+		return startingTreeToggleGroup;
 	}
 
-	/**
-	 * Reads the process's combined stdout/stderr line by line on the calling
-	 * thread and pumps each line back to the FX thread. Updates UI state when
-	 * the process exits.
-	 */
-	private void streamProcessOutput(Process process) {
-		try (var in = new BufferedReader(
-				new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-			String line;
-			while ((line = in.readLine()) != null) {
-				final String captured = line;
-				Platform.runLater(() -> appendOutput(captured + "\n"));
-			}
-		} catch (IOException ex) {
-			Platform.runLater(() -> appendOutput("[stream error] " + ex.getMessage() + "\n"));
-		}
-
-		int exitCode;
-		try {
-			exitCode = process.waitFor();
-		} catch (InterruptedException ex) {
-			Thread.currentThread().interrupt();
-			exitCode = -1;
-		}
-		final int code = exitCode;
-		Platform.runLater(() -> onProcessExited(process, code));
+	public Label getStatusLabel() {
+		return statusLabel;
 	}
 
-	private void onProcessExited(Process process, int exitCode) {
-		running.set(false);
-		if (currentProcess == process) currentProcess = null;
-		appendOutput("\n[picl exited with code " + exitCode + "]\n");
-
-		// Flush + close the log file. Any subsequent appendOutput calls
-		// (e.g. status updates) will only hit the on-screen TextArea.
-		if (logFileWriter != null) {
-			try {
-				logFileWriter.close(); } catch (IOException ignored) {}
-			logFileWriter = null;
-		}
-
-		if (exitCode == 0) {
-			runStatusLabel.setText("Finished");
-			statusLabel.setText("PICL finished successfully");
-
-			// Read back the .trees file PICL wrote (trees + section
-			// headers in mutation and coalescent units).
-			if (pendingTreeInfoPath != null
-				&& loadTreeFromFile(pendingTreeInfoPath)) {
-				mainTabPane.getSelectionModel().select(outputTab);
-			}
-
-			// Draw the .tre file (single Newick output tree) into the
-			// graphical Tree tab. The selected tab stays where it was.
-			if (pendingOutTreePath != null) {
-				drawTreeFromFile(pendingOutTreePath);
-			}
-		} else {
-			runStatusLabel.setText("Failed (exit " + exitCode + ")");
-			statusLabel.setText("PICL exited with code " + exitCode);
-		}
+	public Label getThetaHintLabel() {
+		return thetaHintLabel;
 	}
 
-	/**
-	 * Reads the given tree file into the Tree tab's TextArea.
-	 * Returns true on success, false (with a status update) if the file is
-	 * missing or unreadable.
-	 */
-	private boolean loadTreeFromFile(Path treeFile) {
-		if (!Files.isReadable(treeFile)) {
-			treesFilePathLabel.setText(treeFile + "  (not found)");
-			return false;
-		}
-		try {
-			var content = Files.readString(treeFile);
-			outputTextArea.setText(content);
-			treesFilePathLabel.setText(treeFile.toString());
-			lastTreeFile = treeFile;
-			return true;
-		} catch (IOException ex) {
-			treesFilePathLabel.setText(treeFile + "  (error)");
-			statusLabel.setText("Could not read " + treeFile.getFileName() + ": " + ex.getMessage());
-			return false;
-		}
+	public TextField getThetaTextField() {
+		return thetaTextField;
 	}
 
-	// =================================================================
-	//  Tree tab — graphical phylogram view of the .tre file
-	// =================================================================
-
-	/**
-	 * Initial state for the Tree tab: a placeholder, plus listeners that
-	 * redraw the most recent tree whenever the canvas resizes.
-	 */
-	private void configureTreeTab() {
-		showTreePlaceholder("Run PICL to see the tree.");
-		treeCanvasPane.widthProperty().addListener((obs, o, n) -> redrawTree());
-		treeCanvasPane.heightProperty().addListener((obs, o, n) -> redrawTree());
+	public Button getTreeFileBrowseButton() {
+		return treeFileBrowseButton;
 	}
 
-	/**
-	 * Replaces the canvas contents with a single labelled placeholder.
-	 */
-	private void showTreePlaceholder(String text) {
-		var label = new Label(text);
-		label.setLayoutX(20);
-		label.setLayoutY(20);
-		treeCanvasPane.getChildren().setAll(label);
-		lastDrawnTreeRoot = null;
+	public TextField getTreeFileTextField() {
+		return treeFileTextField;
 	}
 
-	/**
-	 * Re-runs DrawPhylogram with the current canvas size. No-op if no tree loaded yet.
-	 */
-	private void redrawTree() {
-		if (lastDrawnTreeRoot == null) return;
-		var w = treeCanvasPane.getWidth();
-		var h = treeCanvasPane.getHeight();
-		if (w <= 40 || h <= 40) return; // not laid out yet, or too small to bother
-		var pad = 20.0;
-		var group = DrawPhylogram.draw(lastDrawnTreeRoot, w - 2 * pad, h - 2 * pad);
-		group.setLayoutX(pad);
-		group.setLayoutY(pad);
-		treeCanvasPane.getChildren().setAll(group);
+	public TextField getTreeSearchIterationsTextField() {
+		return treeSearchIterationsTextField;
 	}
 
-	/**
-	 * Reads the given .tre file, parses the first Newick string in it, and
-	 * draws it into the Tree tab. Returns true on success.
-	 * <p>
-	 * If the file contains multiple trees (semicolon-separated), only the
-	 * first is drawn.
-	 */
-	private boolean drawTreeFromFile(Path treeFile) {
-		if (!Files.isReadable(treeFile)) {
-			treeFilePathLabel.setText(treeFile + "  (not found)");
-			showTreePlaceholder("Tree file not found.");
-			return false;
-		}
-		try {
-			var content = Files.readString(treeFile).trim();
-			if (content.isEmpty()) {
-				treeFilePathLabel.setText(treeFile + "  (empty)");
-				showTreePlaceholder("Tree file is empty.");
-				return false;
-			}
-			var semi = content.indexOf(';');
-			var newick = (semi >= 0) ? content.substring(0, semi + 1) : content;
-			lastDrawnTreeRoot = new NewickParser(newick).parse();
-			treeFilePathLabel.setText(treeFile.toString());
-			redrawTree();
-			return true;
-		} catch (Exception ex) {
-			treeFilePathLabel.setText(treeFile + "  (error)");
-			statusLabel.setText("Could not draw " + treeFile.getFileName() + ": " + ex.getMessage());
-			showTreePlaceholder("Could not parse tree: " + ex.getMessage());
-			return false;
-		}
+	public ChoiceBox<Settings.TreeSearchMethod> getTreeSearchMethodChoiceBox() {
+		return treeSearchMethodChoiceBox;
 	}
 
-	private void onStopRun(ActionEvent e) {
-		var p = currentProcess;
-		if (p == null || !p.isAlive()) return;
-		appendOutput("\n[stopping picl…]\n");
-		p.destroy();
-		// Give it a moment, then force.
-		new Thread(() -> {
-			try {
-				p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
-			} catch (InterruptedException ignored) {}
-			if (p.isAlive()) p.destroyForcibly();
-		}, "picl-stop").start();
+	public TitledPane getTreeSearchTitledPane() {
+		return treeSearchTitledPane;
 	}
 
-	private void onCopyOutput(ActionEvent e) {
-		var content = new ClipboardContent();
-		content.putString(logTabTextArea.getText());
-		Clipboard.getSystemClipboard().setContent(content);
-		statusLabel.setText("Output copied to clipboard");
+	public CheckBox getUseBranchLengthsFromTreeCheckBox() {
+		return useBranchLengthsFromTreeCheckBox;
 	}
 
-	private void onReloadTree(ActionEvent e) {
-		// Prefer the most recently loaded tree path, then the current
-		// value of the Output tree field.
-		Path target;
-		if (lastTreeFile != null) {
-			target = lastTreeFile;
-		} else {
-			var fieldText = outTreeFileTextField.getText().trim();
-			if (fieldText.isBlank()) {
-				statusLabel.setText("No tree to reload — run PICL first.");
-				return;
-			}
-			target = Paths.get(fieldText);
-		}
-		if (loadTreeFromFile(target)) {
-			statusLabel.setText("Reloaded " + target.getFileName());
-		}
+	public Button getValidateButton() {
+		return validateButton;
 	}
 
-	private void onCopyTree(ActionEvent e) {
-		var content = new ClipboardContent();
-		content.putString(outputTextArea.getText());
-		Clipboard.getSystemClipboard().setContent(content);
-		statusLabel.setText("Tree copied to clipboard");
+	public CheckBox getVerboseOutputCheckBox() {
+		return verboseOutputCheckBox;
 	}
 
-	private void onSaveTreeAs(ActionEvent e) {
-		var chooser = new FileChooser();
-		chooser.setTitle("Save trees as");
-		// The Trees tab shows the .trees file (annotated, multi-tree),
-		// so default to that extension. Plain Newick is offered as a
-		// secondary option in case the user pasted in pure Newick.
-		chooser.getExtensionFilters().add(
-				new FileChooser.ExtensionFilter("Tree info", "*.trees"));
-		chooser.getExtensionFilters().add(
-				new FileChooser.ExtensionFilter("Newick tree", "*.tre", "*.tree", "*.nwk", "*.newick"));
-		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All files", "*"));
-		if (lastTreeFile != null && lastTreeFile.getParent() != null) {
-			chooser.setInitialDirectory(lastTreeFile.getParent().toFile());
-			chooser.setInitialFileName(lastTreeFile.getFileName().toString());
-		} else {
-			chooser.setInitialFileName("output.trees");
-		}
-		var file = chooser.showSaveDialog(window());
-		if (file == null) return;
-		try {
-			Files.writeString(file.toPath(), outputTextArea.getText());
-			statusLabel.setText("Saved to " + file.getName());
-		} catch (IOException ex) {
-			error("Could not save", ex);
-		}
+	public TextField getOutTreeFileTextField() {
+		return outTreeFileTextField;
 	}
 
-	/**
-	 * Append text on the FX thread to both the Log tab and the on-disk
-	 * .log file (when one is open). Caller is responsible for thread context.
-	 */
-	private void appendOutput(String text) {
-		logTabTextArea.appendText(text);
-		if (logFileWriter != null) {
-			try {
-				logFileWriter.write(text);
-				logFileWriter.flush();   // keep the file readable in real time
-			} catch (IOException ex) {
-				// Don't tear down the run; just stop logging and surface a status.
-				try {
-					logFileWriter.close(); } catch (IOException ignored) {}
-				logFileWriter = null;
-				statusLabel.setText("Log file write failed: " + ex.getMessage());
-			}
-		}
+	public Button getOutTreeFileBrowseButton() {
+		return outTreeFileBrowseButton;
 	}
 
-	private void onAutoDetectSpeciesByPrefix(ActionEvent e) {
-		var seen = new java.util.LinkedHashSet<String>();
-		for (var la : settings.getLineageAssignments()) {
-			var name = la.getLineage();
-			if (name == null) continue;
-			int dot = name.indexOf('.');
-			int us  = name.indexOf('_');
-			int cut = (dot >= 0 && (us < 0 || dot < us)) ? dot : us;
-			if (cut > 0) {
-				var sp = name.substring(0, cut);
-				la.setSpecies(sp);
-				seen.add(sp);
-			}
-		}
-		// Refresh the explicit species list to match what we just assigned.
-		settings.getSpecies().setAll(seen);
-		lineageSpeciesTableView.refresh();
-		updateCountLabels();
+	public TitledPane getMoreFilesTitledPane() {
+		return moreFilesTitledPane;
 	}
 
-	private void onImportSpeciesMapping(ActionEvent e) {
-		var chooser = new FileChooser();
-		chooser.setTitle("Import species mapping (lineage<TAB>species per line)");
-		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Tab-separated", "*.tsv", "*.txt"));
-		var file = chooser.showOpenDialog(window());
-		if (file == null) return;
-		try {
-			var rows = settings.getLineageAssignments();
-			var byName = new java.util.HashMap<String, Settings.LineageAssignment>();
-			for (var la : rows) byName.put(la.getLineage(), la);
-			for (var line : java.nio.file.Files.readAllLines(file.toPath())) {
-				if (line.isBlank() || line.startsWith("#")) continue;
-				var parts = line.split("\t", 2);
-				if (parts.length < 2) continue;
-				var la = byName.get(parts[0]);
-				if (la != null) la.setSpecies(parts[1]);
-			}
-			lineageSpeciesTableView.refresh();
-			updateCountLabels();
-			statusLabel.setText("Mapping imported from " + file.getName());
-		} catch (IOException ex) {
-			error("Could not import mapping", ex);
-		}
+	public Label getSettingsPathLabel() {
+		return settingsPathLabel;
 	}
 
-	// =================================================================
-	//  Small helpers
-	// =================================================================
-
-	private long nextSeed() { return random.nextInt(Integer.MAX_VALUE); }
-
-	private javafx.stage.Window window() {
-		return cancelButton == null ? null : cancelButton.getScene().getWindow();
+	public Label getTreesPathLabel() {
+		return treesPathLabel;
 	}
 
-	private static double parseDouble(TextField tf, double dflt) {
-		try {
-			return Double.parseDouble(tf.getText().trim());
-		} catch (Exception ex) { return dflt; }
-	}
-	private static int parseInt(TextField tf, int dflt) {
-		try {
-			return Integer.parseInt(tf.getText().trim());
-		} catch (Exception ex) { return dflt; }
-	}
-	private static long parseLong(TextField tf, long dflt) {
-		try {
-			return Long.parseLong(tf.getText().trim());
-		} catch (Exception ex) { return dflt; }
+	public Label getValuesPathLabel() {
+		return valuesPathLabel;
 	}
 
-	private void error(String header, Throwable t) {
-		statusLabel.setText(header + ": " + t.getMessage());
-		var a = new Alert(Alert.AlertType.ERROR, t.getMessage() == null ? t.toString() : t.getMessage(),
-				ButtonType.OK);
-		a.setHeaderText(header);
-		a.showAndWait();
+	public Label getLogPathLabel() {
+		return logPathLabel;
+	}
+
+	public Label getBootstrapPathLabel() {
+		return bootstrapPathLabel;
+	}
+
+	public TabPane getMainTabPane() {
+		return mainTabPane;
+	}
+
+	public Tab getSettingsTab() {
+		return settingsTab;
+	}
+
+	public Tab getLogTab() {
+		return logTab;
+	}
+
+	public TextField getPiclExecutableTextField() {
+		return piclExecutableTextField;
+	}
+
+	public Button getPiclExecutableBrowseButton() {
+		return piclExecutableBrowseButton;
+	}
+
+	public Label getRunStatusLabel() {
+		return runStatusLabel;
+	}
+
+	public ProgressBar getRunProgressBar() {
+		return runProgressBar;
+	}
+
+	public Button getClearOutputButton() {
+		return clearOutputButton;
+	}
+
+	public Button getCopyOutputButton() {
+		return copyOutputButton;
+	}
+
+	public Button getStopRunButton() {
+		return stopRunButton;
+	}
+
+	public TextArea getLogTabTextArea() {
+		return logTabTextArea;
+	}
+
+	public Tab getOutputTab() {
+		return outputTab;
+	}
+
+	public Label getTreesFilePathLabel() {
+		return treesFilePathLabel;
+	}
+
+	public Button getReloadTreeButton() {
+		return reloadTreeButton;
+	}
+
+	public Button getCopyTreeButton() {
+		return copyTreeButton;
+	}
+
+	public Button getSaveTreeAsButton() {
+		return saveTreeAsButton;
+	}
+
+	public TextArea getOutputTextArea() {
+		return outputTextArea;
+	}
+
+	public Tab getTreeTab() {
+		return treeTab;
+	}
+
+	public Label getTreeFilePathLabel() {
+		return treeFilePathLabel;
+	}
+
+	public Pane getTreeCanvasPane() {
+		return treeCanvasPane;
+	}
+
+	public MenuBar getMenuBar() {
+		return menuBar;
+	}
+
+	public MenuItem getNewMenuItem() {
+		return newMenuItem;
+	}
+
+	public MenuItem getOpenMenuItem() {
+		return openMenuItem;
+	}
+
+	public MenuItem getSaveMenuItem() {
+		return saveMenuItem;
+	}
+
+	public MenuItem getPrintMenuItem() {
+		return printMenuItem;
+	}
+
+	public MenuItem getPageSetupMenuItem() {
+		return pageSetupMenuItem;
+	}
+
+	public MenuItem getCloseMenuItem() {
+		return closeMenuItem;
+	}
+
+	public MenuItem getQuitMenuItem() {
+		return quitMenuItem;
+	}
+
+	public MenuItem getUndoMenuItem() {
+		return undoMenuItem;
+	}
+
+	public MenuItem getRedoMenuItem() {
+		return redoMenuItem;
+	}
+
+	public MenuItem getCutMenuItem() {
+		return cutMenuItem;
+	}
+
+	public MenuItem getCopyMenuItem() {
+		return copyMenuItem;
+	}
+
+	public MenuItem getPasteMenuItem() {
+		return pasteMenuItem;
+	}
+
+	public MenuItem getDeleteMenuItem() {
+		return deleteMenuItem;
+	}
+
+	public Menu getViewMenu() {
+		return viewMenu;
+	}
+
+	public CheckMenuItem getFullScreenMenuItem() {
+		return fullScreenMenuItem;
+	}
+
+	public CheckMenuItem getDarkModeMenuItem() {
+		return darkModeMenuItem;
+	}
+
+	public ToggleGroup getTabsToggleGroup() {
+		return tabsToggleGroup;
+	}
+
+	public RadioMenuItem getSettingsTabMenuItem() {
+		return settingsTabMenuItem;
+	}
+
+	public RadioMenuItem getLogTabMenuItem() {
+		return logTabMenuItem;
+	}
+
+	public RadioMenuItem getOutputTabMenuItem() {
+		return outputTabMenuItem;
+	}
+
+	public RadioMenuItem getTreeTabMenuItem() {
+		return treeTabMenuItem;
 	}
 }
