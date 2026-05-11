@@ -38,9 +38,9 @@ import java.util.Objects;
 
 public class SplashScreen {
 	public static String SPLASH_IMAGE = "Splash.png";
-	public static String VERSION = Version.VERSION;
-	public static double VERSION_X = 540;
-	public static double VERSION_Y = 40;
+	public static String VERSION = Version.SHORT_DESCRIPTION;
+	public static double VERSION_X = 400;
+	public static double VERSION_Y = 20;
 
 	private final Stage stage;
 
@@ -58,9 +58,9 @@ public class SplashScreen {
 		// Version text
 		// --------------------------------------------------------------------
 
-		var versionText = new Text("V" + VERSION);
+		var versionText = new Text(VERSION);
 
-		versionText.setFont(Font.font("Arial", 14));
+		versionText.setFont(Font.font("Arial", 11));
 		versionText.setManaged(false);
 		versionText.setLayoutX(VERSION_X);
 		versionText.setLayoutY(VERSION_Y);
