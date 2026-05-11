@@ -190,7 +190,7 @@
                                 <!-- ============================================== -->
                                 <!--  Model and data                                -->
                                 <!-- ============================================== -->
-                                <TitledPane fx:id="modelAndDataTitledPane" collapsible="true" expanded="true"
+                                <TitledPane fx:id="modelAndDataTitledPane" collapsible="true" expanded="false"
                                             text="Model and data">
                                     <GridPane hgap="16.0" vgap="8.0">
                                         <columnConstraints>
