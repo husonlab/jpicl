@@ -22,6 +22,7 @@ package jpicl.util;
 
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.Label;
 import javafx.stage.Window;
 
 import java.nio.file.Files;
@@ -33,7 +34,7 @@ import java.util.Optional;
  * Path derivations and collision-avoidance for the files PICL writes
  * (.tre, .trees, .log, .bootstrap, .values) plus the .settings file
  * the controller writes itself before launch.
- * <p>
+ *
  * Defensive strategy: rather than overwriting existing files, the
  * caller asks {@link #bumpUntilFree(String, String)} for a coherent
  * set of output paths whose names share the smallest suffix that
@@ -49,37 +50,24 @@ public final class OutputFiles {
 	 * Default extension for the output tree (replaces the alignment extension).
 	 */
 	public static final String TREE_EXTENSION = ".tre";
-	/**
-	 * Default extension for the settings file (sibling of the output tree).
-	 */
+	/** Default extension for the settings file (sibling of the output tree). */
 	public static final String SETTINGS_EXTENSION = ".settings";
-	/**
-	 * Default extension for the tree-info file (renamed PICL "outtree.tre").
-	 */
+	/** Default extension for the tree-info file (renamed PICL "outtree.tre"). */
 	public static final String TREEINFO_EXTENSION = ".trees";
-	/**
-	 * Default extension for the values file (uses the alignment basename).
-	 */
+	/** Default extension for the values file (uses the alignment basename). */
 	public static final String VALUES_EXTENSION = ".values";
-	/**
-	 * Default extension for the log file (sibling of the output tree).
-	 */
+	/** Default extension for the log file (sibling of the output tree). */
 	public static final String LOG_EXTENSION = ".log";
-	/**
-	 * Default extension for the bootstrap file (sibling of the output tree).
-	 */
+	/** Default extension for the bootstrap file (sibling of the output tree). */
 	public static final String BOOTSTRAP_EXTENSION = ".bootstrap";
 
-	private OutputFiles() {
-	}
+	private OutputFiles() {}
 
 	// =================================================================
 	//  Path derivation
 	// =================================================================
 
-	/**
-	 * alignment "/path/foo.phy" → "/path/foo.tre". Empty input → empty result.
-	 */
+	/** alignment "/path/foo.phy" → "/path/foo.tre". Empty input → empty result. */
 	public static String deriveOutputTreePath(String alignmentPath) {
 		if (alignmentPath == null || alignmentPath.isBlank()) return "";
 		var p = Paths.get(alignmentPath);
@@ -87,44 +75,32 @@ public final class OutputFiles {
 				.toString();
 	}
 
-	/**
-	 * outputTree "/path/foo.tre" → "/path/foo.settings". Empty input → "(none)".
-	 */
+	/** outputTree "/path/foo.tre" → "/path/foo.settings". Empty input → "(none)". */
 	public static String deriveSettingsPath(String outputTreePath) {
 		return deriveSiblingPath(outputTreePath, SETTINGS_EXTENSION);
 	}
 
-	/**
-	 * outputTree "/path/foo.tre" → "/path/foo.trees". Empty input → "(none)".
-	 */
+	/** outputTree "/path/foo.tre" → "/path/foo.trees". Empty input → "(none)". */
 	public static String deriveTreeInfoPath(String outputTreePath) {
 		return deriveSiblingPath(outputTreePath, TREEINFO_EXTENSION);
 	}
 
-	/**
-	 * alignment "/path/foo.phy" → "/path/foo.values". Empty input → "(none)".
-	 */
+	/** alignment "/path/foo.phy" → "/path/foo.values". Empty input → "(none)". */
 	public static String deriveValuesPath(String alignmentPath) {
 		return deriveSiblingPath(alignmentPath, VALUES_EXTENSION);
 	}
 
-	/**
-	 * outputTree "/path/foo.tre" → "/path/foo.log". Empty input → "(none)".
-	 */
+	/** outputTree "/path/foo.tre" → "/path/foo.log". Empty input → "(none)". */
 	public static String deriveLogPath(String outputTreePath) {
 		return deriveSiblingPath(outputTreePath, LOG_EXTENSION);
 	}
 
-	/**
-	 * outputTree "/path/foo.tre" → "/path/foo.bootstrap". Empty input → "(none)".
-	 */
+	/** outputTree "/path/foo.tre" → "/path/foo.bootstrap". Empty input → "(none)". */
 	public static String deriveBootstrapPath(String outputTreePath) {
 		return deriveSiblingPath(outputTreePath, BOOTSTRAP_EXTENSION);
 	}
 
-	/**
-	 * Replaces the extension on a path, or returns "(none)" for blank input.
-	 */
+	/** Replaces the extension on a path, or returns "(none)" for blank input. */
 	public static String deriveSiblingPath(String filePath, String newExtension) {
 		if (filePath == null || filePath.isBlank()) return "(none)";
 		var p = Paths.get(filePath);
@@ -132,9 +108,7 @@ public final class OutputFiles {
 				.toString();
 	}
 
-	/**
-	 * "foo.phy" → "foo"; "foo" → "foo"; ".bashrc" → ".bashrc".
-	 */
+	/** "foo.phy" → "foo"; "foo" → "foo"; ".bashrc" → ".bashrc". */
 	public static String stripExtension(String filename) {
 		int dot = filename.lastIndexOf('.');
 		return (dot <= 0) ? filename : filename.substring(0, dot);
@@ -150,11 +124,11 @@ public final class OutputFiles {
 	 * means no rename — the natural names derived from the text fields.
 	 * Higher values mean we bumped to data-2.tre, data-3.tre, … because
 	 * the natural names collided with files already on disk.
-	 * <p>
+	 *
 	 * The .values file uses the alignment basename, the others use the
 	 * output-tree basename. They share the suffix so a run's output set
 	 * stays coherent (every file from one run carries the same -N).
-	 * <p>
+	 *
 	 * Any field may be {@code null} when the corresponding text input
 	 * was blank — for example, no alignment selected ⇒ values == null.
 	 */
@@ -166,9 +140,7 @@ public final class OutputFiles {
 							  Path values,     // .values
 							  Path settings) { // .settings (controller writes this)
 
-		/**
-		 * True iff every non-null path in the set is currently free on disk.
-		 */
+		/** True iff every non-null path in the set is currently free on disk. */
 		public boolean allClear() {
 			for (var p : new Path[]{outTree, treesInfo, log, bootstrap, values, settings}) {
 				if (p != null && Files.exists(p)) return false;
@@ -181,7 +153,7 @@ public final class OutputFiles {
 	 * Returns the original filePath unchanged if {@code suffix <= 1},
 	 * otherwise inserts {@code -<suffix>} immediately before the
 	 * extension. {@code "/data/foo.tre" → "/data/foo-2.tre"}.
-	 * <p>
+	 *
 	 * Pass-through for blank input and the "(none)" sentinel so callers
 	 * can apply this uniformly to any derived path.
 	 */
@@ -201,7 +173,7 @@ public final class OutputFiles {
 	 * where nothing collides on disk. Capped at 999 to surface
 	 * pathological situations (e.g. a directory full of stale runs)
 	 * rather than spinning forever.
-	 * <p>
+	 *
 	 * The returned suffix tells callers whether they need to inform the
 	 * user (suffix > 1) or proceed silently (suffix == 1).
 	 */
@@ -237,7 +209,7 @@ public final class OutputFiles {
 	/**
 	 * Asks the user whether to write to a renamed output set because
 	 * the natural names already exist. Returns true on OK.
-	 * <p>
+	 *
 	 * The user can still abort by clicking Cancel — we never silently
 	 * overwrite, and never silently rename.
 	 */
@@ -246,12 +218,25 @@ public final class OutputFiles {
 				  + "Write to this name instead?\n  " + bumped.outTree() + "\n\n"
 				  + "Companion files (.trees, .log, .bootstrap, .values, .settings) "
 				  + "will share the same -" + bumped.suffix() + " suffix.";
-		var alert = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK, ButtonType.CANCEL);
-		alert.setWidth(640);
+
+		var alert = new Alert(Alert.AlertType.CONFIRMATION, "",
+				ButtonType.OK, ButtonType.CANCEL);
+		alert.setHeaderText("Output file exists");
+		alert.setTitle("Use a new filename?");
 		alert.setResizable(true);
 
-		alert.setHeaderText("Output file exists");
-		alert.setTitle("JPICL- Use a new filename?");
+		// Replace the content with our own wrapping Label. The default
+		// Alert content node has a baked-in width that truncates long
+		// absolute file paths; this lets us size the dialog properly.
+		var content = new Label(msg);
+		content.setWrapText(true);
+		content.setMaxWidth(Double.MAX_VALUE);
+
+		var pane = alert.getDialogPane();
+		pane.setContent(content);
+		pane.setMinWidth(640);
+		pane.setPrefWidth(720);
+
 		if (owner != null) alert.initOwner(owner);
 		Optional<ButtonType> choice = alert.showAndWait();
 		return choice.isPresent() && choice.get() == ButtonType.OK;

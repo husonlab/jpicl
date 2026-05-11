@@ -11,4 +11,7 @@ module jpicl {
 	opens jpicl.dialog to javafx.fxml;
 	opens jpicl.main to javafx.fxml;
 
+	exports jpicl.updater;
+
+
 }

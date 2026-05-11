@@ -23,7 +23,6 @@ package jpicl.updater;
 public class UpdateManifest {
 
 	private String latestVersion;
-	private String minimumCompatibleVersion;
 
 	private PlatformInstaller windows;
 	private PlatformInstaller macos;
@@ -37,14 +36,6 @@ public class UpdateManifest {
 
 	public void setLatestVersion(String latestVersion) {
 		this.latestVersion = latestVersion;
-	}
-
-	public String getMinimumCompatibleVersion() {
-		return minimumCompatibleVersion;
-	}
-
-	public void setMinimumCompatibleVersion(String minimumCompatibleVersion) {
-		this.minimumCompatibleVersion = minimumCompatibleVersion;
 	}
 
 	public PlatformInstaller getWindows() {

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 #
-# bump-to-lauras-latest-picl.sh
+# bump-to-latest-picl.sh
 #
 # Updates the native/picl git submodule to the latest commit on its
 # tracked branch, shows the new commits, and records the new pointer
 # in a jpicl commit.
 #
 # Usage:
-#   ./bump-to-lauras-latest-picl.sh             # update + commit
-#   ./bump-to-lauras-latest-picl.sh --dry-run   # show what would change, then revert
-#   ./bump-to-lauras-latest-picl.sh --help
+#   ./bump-to-latest-picl.sh             # update + commit
+#   ./bump-to-latest-picl.sh --dry-run   # show what would change, then revert
+#   ./bump-to-latest-picl.sh --help
 #
 # Run from anywhere inside the jpicl repo. By default the submodule is
 # expected at native/picl; override with PICL_SUBMODULE_PATH=...

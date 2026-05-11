@@ -30,6 +30,7 @@ import jpicl.window.Window;
 public class App extends Application {
 	@Override
 	public void start(Stage stage) throws Exception {
+		new SplashScreen().showBriefly(2.0);
 		Window.createWindow(stage).getStage().show();
 	}
 }

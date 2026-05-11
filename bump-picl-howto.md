@@ -10,7 +10,7 @@ The whole loop takes ~10 minutes of your time plus ~4 minutes of CI.
 ## 1. Bump the submodule and sanity-check on your M4
 
 ```sh
-./scripts/bump-to-lauras-latest-picl.sh    # records the new commit in jpicl
+./scripts/bump-to-latest-picl.sh    # records the new commit in jpicl
 ./scripts/compile-picl.sh                  # compiles + drops binary into resources/
 ```
 

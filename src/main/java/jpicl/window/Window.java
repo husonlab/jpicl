@@ -41,8 +41,8 @@ public class Window {
 		this.stage = stage;
 		this.dialogView = dialogView;
 
-		var x = javafx.stage.Window.getWindows().stream().mapToDouble(javafx.stage.Window::getX).max().orElse(30.0);
-		var y = javafx.stage.Window.getWindows().stream().mapToDouble(javafx.stage.Window::getY).max().orElse(30.0);
+		var x = javafx.stage.Window.getWindows().stream().filter(w -> w.getUserData() instanceof Integer).mapToDouble(javafx.stage.Window::getX).max().orElse(30.0);
+		var y = javafx.stage.Window.getWindows().stream().filter(w -> w.getUserData() instanceof Integer).mapToDouble(javafx.stage.Window::getY).max().orElse(30.0);
 		stage.setX(x + 20);
 		stage.setY(y + 20);
 		var windowId = javafx.stage.Window.getWindows().stream().filter(w -> w.getUserData() instanceof Integer).mapToInt(w -> (Integer) w.getUserData()).max().orElse(0) + 1;

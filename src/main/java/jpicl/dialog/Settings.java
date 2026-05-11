@@ -158,7 +158,7 @@ public class Settings {
 
 	public static class LineageAssignment {
 		private final int index;
-		private final String lineage;
+		private String lineage;
 		private String species;
 
 		public LineageAssignment(int index, String lineage, String species) {
@@ -173,6 +173,15 @@ public class Settings {
 
 		public String getLineage() {
 			return lineage;
+		}
+
+		/**
+		 * Replaces the lineage name. Used by the FASTA-input path to
+		 * temporarily swap in placeholder names while writing the
+		 * settings file PICL reads, then restore originals.
+		 */
+		public void setLineage(String lineage) {
+			this.lineage = lineage;
 		}
 
 		public String getSpecies() {
@@ -204,6 +213,10 @@ public class Settings {
 
 	private TreeSearchMethod treeSearchMethod = TreeSearchMethod.SA_NNI;
 	private long treeSearchIterations = 30_000L;
+	private int multiIter = 3;
+	private double probBound = 0.05;
+	private int testIncr = 250;
+	private double optSlope = -0.01;
 	private double coolingRate = 0.005;
 
 	private int bootstrapReplicates = 0;
@@ -327,6 +340,38 @@ public class Settings {
 		this.treeSearchIterations = v;
 	}
 
+	public int getMultiIter() {
+		return multiIter;
+	}
+
+	public void setMultiIter(int v) {
+		this.multiIter = v;
+	}
+
+	public double getProbBound() {
+		return probBound;
+	}
+
+	public void setProbBound(double v) {
+		this.probBound = v;
+	}
+
+	public int getTestIncr() {
+		return testIncr;
+	}
+
+	public void setTestIncr(int v) {
+		this.testIncr = v;
+	}
+
+	public double getOptSlope() {
+		return optSlope;
+	}
+
+	public void setOptSlope(double v) {
+		this.optSlope = v;
+	}
+
 	public double getCoolingRate() {
 		return coolingRate;
 	}
@@ -394,6 +439,10 @@ public class Settings {
 	//      Num_cat: <int>
 	//      Tree_search: <int>          tree-search method code
 	//      Num_iter: <long>
+	//      Multi_iter: <int>           multi-start iterations
+	//      Prob_bound: <double>        acceptance-probability bound
+	//      Test_incr: <int>            test increment
+	//      Opt_slope: <double>         optimisation slope threshold
 	//      Beta: <double>
 	//      Verbose: <0|1>
 	//      <speciesCount>
@@ -419,6 +468,10 @@ public class Settings {
 		public static final String NUM_CAT = "Num_cat";       // gamma categories
 		public static final String TREE_SEARCH = "Tree_search";   // tree-search method code
 		public static final String NUM_ITER = "Num_iter";      // tree-search iterations
+		public static final String MULTI_ITER = "Multi_iter";   // multi-start iterations
+		public static final String PROB_BOUND = "Prob_bound";   // acceptance probability bound
+		public static final String TEST_INCR = "Test_incr";    // test increment
+		public static final String OPT_SLOPE = "Opt_slope";    // optimisation slope threshold
 		public static final String BETA = "Beta";          // cooling rate
 		public static final String VERBOSE = "Verbose";
 
@@ -430,7 +483,7 @@ public class Settings {
 	 * Reads a PICL settings file and returns a populated Settings instance.
 	 */
 	public static Settings read(Path path) throws IOException {
-		var s = new Settings();
+		var settings = new Settings();
 		var lines = Files.readAllLines(path);
 		int i = 0;
 
@@ -445,26 +498,36 @@ public class Settings {
 			if (colon < 0) break;                       // first non-key line: species count
 			var key = line.substring(0, colon).trim();
 			var val = line.substring(colon + 1).trim();
-			applyHeaderEntry(s, key, val);
+			applyHeaderEntry(settings, key, val);
 			i++;
 		}
 
 		// ----- species count -----
 		while (i < lines.size() && lines.get(i).trim().isEmpty()) i++;
-		if (i >= lines.size())
-			throw new IOException("Settings file ended before species count");
+		if (i >= lines.size()) {
+			if (true) {
+				System.err.println("Settings file ended before species count");
+				return settings;
+			} else
+				throw new IOException("Settings file ended before species count");
+		}
 		int speciesCount = Integer.parseInt(lines.get(i).trim());
 		i++;
 
 		// ----- species names (space-separated, on one line) -----
 		while (i < lines.size() && lines.get(i).trim().isEmpty()) i++;
-		if (i >= lines.size())
-			throw new IOException("Settings file ended before species list");
+		if (i >= lines.size()) {
+			if (true) {
+				System.err.println("Settings file ended before species list");
+				return settings;
+			} else
+				throw new IOException("Settings file ended before species list");
+
+		}
 		var names = lines.get(i).trim().split("\\s+");
 		if (names.length != speciesCount)
-			throw new IOException("Species count " + speciesCount
-								  + " does not match number of names (" + names.length + ")");
-		s.species.setAll(Arrays.asList(names));
+			throw new IOException("Species count " + speciesCount + " does not match number of names (" + names.length + ")");
+		settings.species.setAll(Arrays.asList(names));
 		i++;
 
 		// ----- lineage assignments: "<species> <lineage>" -----
@@ -475,9 +538,9 @@ public class Settings {
 			if (line.isEmpty()) continue;
 			var parts = line.split("\\s+", 2);
 			if (parts.length < 2) continue;
-			s.lineageAssignments.add(new LineageAssignment(idx++, parts[1], parts[0]));
+			settings.lineageAssignments.add(new LineageAssignment(idx++, parts[1], parts[0]));
 		}
-		return s;
+		return settings;
 	}
 
 	private static void applyHeaderEntry(Settings s, String key, String value) {
@@ -498,6 +561,10 @@ public class Settings {
 			case Key.NUM_CAT -> s.gammaCategories = Integer.parseInt(value);
 			case Key.TREE_SEARCH -> s.treeSearchMethod = TreeSearchMethod.fromCode(Integer.parseInt(value));
 			case Key.NUM_ITER -> s.treeSearchIterations = Long.parseLong(value);
+			case Key.MULTI_ITER -> s.multiIter = Integer.parseInt(value);
+			case Key.PROB_BOUND -> s.probBound = Double.parseDouble(value);
+			case Key.TEST_INCR -> s.testIncr = Integer.parseInt(value);
+			case Key.OPT_SLOPE -> s.optSlope = Double.parseDouble(value);
 			case Key.BETA -> s.coolingRate = Double.parseDouble(value);
 			case Key.VERBOSE -> s.verboseOutput = parseBool01(value);
 			default -> { /* ignore unknown keys for forward compatibility */ }
@@ -532,6 +599,10 @@ public class Settings {
 		kv(w, Key.NUM_CAT, Integer.toString(gammaCategories));
 		kv(w, Key.TREE_SEARCH, Integer.toString(treeSearchMethod.code()));
 		kv(w, Key.NUM_ITER, Long.toString(treeSearchIterations));
+		kv(w, Key.MULTI_ITER, Integer.toString(multiIter));
+		kv(w, Key.PROB_BOUND, Double.toString(probBound));
+		kv(w, Key.TEST_INCR, Integer.toString(testIncr));
+		kv(w, Key.OPT_SLOPE, Double.toString(optSlope));
 		kv(w, Key.BETA, Double.toString(coolingRate));
 		kv(w, Key.VERBOSE, bool01(verboseOutput));
 
@@ -613,5 +684,4 @@ public class Settings {
 			problems.add(branchLengthMethod.displayName() + " is not implemented in PICL.");
 		return problems;
 	}
-
 }

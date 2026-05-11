@@ -27,18 +27,25 @@ public class VersionComparator {
 	}
 
 	public static int compare(String a, String b) {
-		String[] aa = a.split("\\.");
-		String[] bb = b.split("\\.");
+		var aa = normalize(a).split("\\.");
+		var bb = normalize(b).split("\\.");
 
-		int n = Math.max(aa.length, bb.length);
+		var n = Math.max(aa.length, bb.length);
 
-		for (int i = 0; i < n; i++) {
-			int ai = i < aa.length ? Integer.parseInt(aa[i]) : 0;
-			int bi = i < bb.length ? Integer.parseInt(bb[i]) : 0;
+		for (var i = 0; i < n; i++) {
+			var ai = i < aa.length ? Integer.parseInt(aa[i]) : 0;
+			var bi = i < bb.length ? Integer.parseInt(bb[i]) : 0;
 
 			if (ai != bi)
 				return Integer.compare(ai, bi);
 		}
 		return 0;
+	}
+
+	private static String normalize(String v) {
+		var dash = v.indexOf('-');
+		var plus = v.indexOf('+');
+		var cut = (dash < 0) ? plus : (plus < 0 ? dash : Math.min(dash, plus));
+		return cut < 0 ? v : v.substring(0, cut);
 	}
 }

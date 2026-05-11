@@ -161,9 +161,11 @@ public class Updater {
 	 * Downloads the installer for the current platform.
 	 */
 	public CompletableFuture<Path> downloadUpdate() {
-
 		if (availableUpdate == null) {
 			throw new IllegalStateException("No update available");
+		}
+		if (downloading.get()) {
+			return CompletableFuture.failedFuture(new IllegalStateException("Already downloading"));
 		}
 
 		downloading.set(true);

@@ -18,7 +18,9 @@
  *
  */
 
-package jpicl.util;
+package jpicl.tools;
+
+import jpicl.util.FastaParser;
 
 import java.io.BufferedWriter;
 import java.io.IOException;

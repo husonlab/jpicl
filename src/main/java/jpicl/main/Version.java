@@ -21,6 +21,9 @@
 package jpicl.main;
 
 public class Version {
+	static public final String VERSION = "0.0.0";
+	static public final String UPDATE_MANIFEST_URL = "http://localhost:8000/example-update-manifest.json";
+
 	static public final String NAME = "JPICL";
 	static public final String SHORT_DESCRIPTION = "JPICL (version 0.0.0, built 2026)";
 }

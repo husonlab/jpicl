@@ -40,11 +40,14 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import jpicl.draw.DrawPhylogram;
-import jpicl.util.NewickParser;
-import jpicl.util.OutputFiles;
-import jpicl.util.TreeNode;
+import jpicl.main.SplashScreen;
+import jpicl.main.Version;
+import jpicl.updater.Updater;
+import jpicl.updater.UpdaterUI;
+import jpicl.util.*;
 
 import java.io.*;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,11 +57,10 @@ import java.util.function.Consumer;
 
 /**
  * All UI wiring, event handlers, and run-time state for the PICL
- * settings dialog. Constructed once by {@link DialogController#initialize()}
- * with the freshly-injected controller; the constructor performs every
+ * settings dialog.The constructor performs every
  * configure-* call so that by the time it returns the dialog is fully
  * live and bound.
- * <p>
+ *
  * The {@link Settings} instance is the source of truth. The UI is
  * populated from it ({@link #applyToUi(Settings)}) and edits are
  * pushed back ({@link #pullFromUi(Settings)}) on demand.
@@ -79,19 +81,13 @@ public class DialogPresenter {
 	 * True while a PICL process is running. Drives Run/Stop button enable state.
 	 */
 	private final SimpleBooleanProperty running = new SimpleBooleanProperty(false);
-	/**
-	 * The currently running process, or null.
-	 */
+	/** The currently running process, or null. */
 	private Process currentProcess;
 
-	/**
-	 * Writer to the per-run log file; null when no run is in flight.
-	 */
+	/** Writer to the per-run log file; null when no run is in flight. */
 	private BufferedWriter logFileWriter;
 
-	/**
-	 * Last tree file path loaded into the Output tab (null if none).
-	 */
+	/** Last tree file path loaded into the Output tab (null if none). */
 	private Path lastTreeFile;
 
 	/**
@@ -101,19 +97,13 @@ public class DialogPresenter {
 	 */
 	private String lastAutoDerivedOutputTree = "";
 
-	/**
-	 * Tree-info path written by picl in the most recent run; null if no run yet.
-	 */
+	/** Tree-info path written by picl in the most recent run; null if no run yet. */
 	private Path pendingTreeInfoPath;
 
-	/**
-	 * Output tree (.tre) path written by picl in the most recent run; null if no run yet.
-	 */
+	/** Output tree (.tre) path written by picl in the most recent run; null if no run yet. */
 	private Path pendingOutTreePath;
 
-	/**
-	 * Last successfully parsed tree root, retained so we can redraw on resize.
-	 */
+	/** Last successfully parsed tree root, retained so we can redraw on resize. */
 	private TreeNode lastDrawnTreeRoot;
 
 	/**
@@ -154,8 +144,7 @@ public class DialogPresenter {
 	}
 
 	public Settings getSettings() {
-		return settings;
-	}
+		return settings; }
 
 	// =================================================================
 	//  Menu bar wiring
@@ -215,11 +204,25 @@ public class DialogPresenter {
 			else if (newTab == treeTab) treeTabMenuItem.setSelected(true);
 		});
 		settingsTabMenuItem.setSelected(true);
+
+		// Check for Updates… — single user-driven check, no auto-poll.
+		// UpdaterUI handles all three outcomes (up-to-date / available /
+		// failed) and the download+install follow-on if applicable.
+		var updater = new Updater(
+				Version.VERSION,
+				URI.create(Version.UPDATE_MANIFEST_URL),
+				UpdaterUI.defaultDownloadsDirectory());
+		var updaterUI = new UpdaterUI(updater,
+				() -> controller.getMenuBar().getScene() != null
+						? controller.getMenuBar().getScene().getWindow() : null);
+		controller.getCheckForUpdatesMenuItem().setOnAction(e -> updaterUI.checkAndPrompt());
+
+		controller.getAboutMenuItem().setOnAction(e -> {
+			new SplashScreen().showUntilDismissed();
+		});
 	}
 
-	/**
-	 * Bindings that need a live Scene (full-screen, dark mode, windows list).
-	 */
+	/** Bindings that need a live Scene (full-screen, dark mode, windows list). */
 	private void installSceneDependentMenuBindings() {
 		var menuBar = controller.getMenuBar();
 		var scene = menuBar.getScene();
@@ -250,8 +253,8 @@ public class DialogPresenter {
 	private static final Object WINDOWS_SECTION_MARKER = new Object();
 
 	private void rebuildWindowsSection() {
-		var viewMenu = controller.getViewMenu();
-		viewMenu.getItems().removeIf(item -> item.getUserData() == WINDOWS_SECTION_MARKER);
+		var windowMenu = controller.getWindowMenu();
+		windowMenu.getItems().removeIf(item -> item.getUserData() == WINDOWS_SECTION_MARKER);
 
 		boolean addedSeparator = false;
 		for (var w : Window.getWindows()) {
@@ -263,7 +266,7 @@ public class DialogPresenter {
 			if (!addedSeparator) {
 				var sep = new SeparatorMenuItem();
 				sep.setUserData(WINDOWS_SECTION_MARKER);
-				viewMenu.getItems().add(sep);
+				windowMenu.getItems().add(sep);
 				addedSeparator = true;
 			}
 
@@ -274,7 +277,7 @@ public class DialogPresenter {
 				stage.toFront();
 				stage.requestFocus();
 			});
-			viewMenu.getItems().add(item);
+			windowMenu.getItems().add(item);
 		}
 	}
 
@@ -529,8 +532,8 @@ public class DialogPresenter {
 		controller.getSaveSettingsButton().setOnAction(this::onSaveSettings);
 
 		controller.getAlignmentBrowseButton().setOnAction(e -> browseForFile(
-				controller.getAlignmentFileTextField(), "Phylip alignment",
-				"*.phy", "*.phylip"));
+				controller.getAlignmentFileTextField(), "Multiple sequence alignment",
+				"*.phy", "*.phylip", "*.fasta","*.fna"));
 		controller.getOutTreeFileBrowseButton().setOnAction(e -> browseForSaveFile(
 				controller.getOutTreeFileTextField(), "Newick tree",
 				"*.tre", "*.tree", "*.nwk", "*.newick"));
@@ -547,6 +550,12 @@ public class DialogPresenter {
 		controller.getValidateButton().setOnAction(this::onValidate);
 		controller.getPreviewSettingsButton().setOnAction(this::onPreview);
 		controller.getRunPiclButton().setOnAction(this::onRunPicl);
+
+		controller.getClearSpeciesListButton().setOnAction(e -> controller.getLineageSpeciesTableView().getItems().clear());
+		controller.getClearSpeciesListButton().disableProperty().bind(Bindings.isEmpty(controller.getLineageSpeciesTableView().getItems()));
+
+		controller.getLineagesFromDataButton().setOnAction(this::onLineagesFromData);
+		controller.getLineagesFromDataButton().disableProperty().bind(Bindings.isNotEmpty(controller.getLineageSpeciesTableView().getItems()));
 
 		controller.getAutoDetectSpeciesByPrefixButton().setOnAction(this::onAutoDetectSpeciesByPrefix);
 		controller.getImportSpeciesMappingButton().setOnAction(this::onImportSpeciesMapping);
@@ -568,7 +577,8 @@ public class DialogPresenter {
 
 	public void applyToUi(Settings s) {
 		controller.getModelChoiceBox().setValue(s.getModel());
-		controller.getAlignmentFileTextField().setText(s.getAlignmentFile());
+		if (false)
+			controller.getAlignmentFileTextField().setText(s.getAlignmentFile());
 		controller.getIncludeAllSitesCheckBox().setSelected(s.isIncludeAllSites());
 		controller.getThetaTextField().setText(Double.toString(s.getTheta()));
 		controller.getGammaRateTextField().setText(Double.toString(s.getGammaRate()));
@@ -578,7 +588,8 @@ public class DialogPresenter {
 			controller.getReadFromTreeFileRadioButton().setSelected(true);
 		else
 			controller.getGenerateRandomTreeRadioButton().setSelected(true);
-		controller.getTreeFileTextField().setText(s.getTreeFile());
+		if (false)
+			controller.getTreeFileTextField().setText(s.getTreeFile());
 		controller.getUseBranchLengthsFromTreeCheckBox().setSelected(s.isUseBranchLengthsFromTree());
 
 		controller.getBranchLengthMethodChoiceBox().setValue(s.getBranchLengthMethod());
@@ -586,6 +597,10 @@ public class DialogPresenter {
 
 		controller.getTreeSearchMethodChoiceBox().setValue(s.getTreeSearchMethod());
 		controller.getTreeSearchIterationsTextField().setText(Long.toString(s.getTreeSearchIterations()));
+		controller.getMultiIterTextField().setText(Integer.toString(s.getMultiIter()));
+		controller.getProbBoundTextField().setText(Double.toString(s.getProbBound()));
+		controller.getTestIncrTextField().setText(Integer.toString(s.getTestIncr()));
+		controller.getOptSlopeTextField().setText(Double.toString(s.getOptSlope()));
 		controller.getCoolingRateTextField().setText(Double.toString(s.getCoolingRate()));
 
 		controller.getBootstrapReplicatesTextField().setText(Integer.toString(s.getBootstrapReplicates()));
@@ -621,6 +636,10 @@ public class DialogPresenter {
 		s.setTreeSearchMethod(controller.getTreeSearchMethodChoiceBox().getValue());
 		s.setTreeSearchIterations(parseLong(controller.getTreeSearchIterationsTextField(),
 				s.getTreeSearchIterations()));
+		s.setMultiIter(parseInt(controller.getMultiIterTextField(), s.getMultiIter()));
+		s.setProbBound(parseDouble(controller.getProbBoundTextField(), s.getProbBound()));
+		s.setTestIncr(parseInt(controller.getTestIncrTextField(), s.getTestIncr()));
+		s.setOptSlope(parseDouble(controller.getOptSlopeTextField(), s.getOptSlope()));
 		s.setCoolingRate(parseDouble(controller.getCoolingRateTextField(), s.getCoolingRate()));
 
 		s.setBootstrapReplicates(parseInt(controller.getBootstrapReplicatesTextField(),
@@ -818,13 +837,26 @@ public class DialogPresenter {
 		}
 
 		var picltreesPath = bumped.outTree();
-		var settingsPath = bumped.settings();
+		var settingsPath = bumped.settings();    // user-visible (always original names)
 		var treesPath = bumped.treesInfo();
 		var valuesPath = bumped.values();
 		var logPath = bumped.log();
 		var bootstrapPath = bumped.bootstrap();
 
-		// Starting tree file — only consulted by PICL when Random_tree=0.
+		// Format detection. PICL accepts relaxed Phylip with long names,
+		// so FASTA inputs just get re-rendered to Phylip (in the system
+		// temp dir) without any name remapping. Phylip inputs pass through.
+		Path piclAlignmentPath;
+		try {
+			piclAlignmentPath = prepareAlignmentForPicl(alignmentPath);
+		} catch (IOException ex) {
+			error("Could not read alignment", ex);
+			return;
+		}
+
+		// Starting tree file path — only consulted by PICL when
+		// Random_tree=0. Use the user's value if set, else a sibling
+		// of the alignment as a fallback.
 		var treeFileText = controller.getTreeFileTextField().getText().trim();
 		Path treeFilePath;
 		if (treeFileText.isBlank()) {
@@ -836,6 +868,8 @@ public class DialogPresenter {
 					: alignmentPath.resolveSibling(tfp).toAbsolutePath();
 		}
 
+		// Write the settings file once — it's both the user-visible
+		// output artifact and PICL's argv[1], using identical contents.
 		try {
 			settings.write(settingsPath);
 		} catch (IOException ex) {
@@ -862,18 +896,27 @@ public class DialogPresenter {
 
 		appendOutput("$ " + execPath
 					 + " " + settingsPath
-					 + " " + alignmentPath
+					 + " " + piclAlignmentPath
 					 + " " + treeFilePath
 					 + " " + treesPath
 					 + " " + picltreesPath
 					 + " " + valuesPath
 					 + " " + bootstrapPath + "\n");
+		if (!piclAlignmentPath.equals(alignmentPath)) {
+			appendOutput("(FASTA input detected; converted to Phylip at " + piclAlignmentPath + ")\n");
+		}
 		appendOutput("(working directory: " + workDir + ")\n");
 		appendOutput("(log file:          " + logPath + ")\n\n");
 
+		try {
+			Files.copy(settingsPath, new File(workDir, "tmp.setting").toPath());
+			Files.copy(piclAlignmentPath, new File(workDir, "tmp.alignment").toPath());
+			Files.copy(treeFilePath, new File(workDir, "tmp.starttree").toPath());
+		} catch (IOException ignored) {}
+
 		// argv layout:
 		//   argv[1] = settings
-		//   argv[2] = data.phy (alignment)
+		//   argv[2] = data.phy (alignment — the converted temp Phylip if input was FASTA)
 		//   argv[3] = treefile.tre (input starting tree, if Random_tree=0)
 		//   argv[4] = outtree.tre (renamed to <output>.trees)
 		//   argv[5] = picltrees.tre (the user's Output tree — Newick only)
@@ -882,7 +925,7 @@ public class DialogPresenter {
 		var pb = new ProcessBuilder(
 				execPath.toString(),
 				settingsPath.toString(),
-				alignmentPath.toString(),
+				piclAlignmentPath.toString(),
 				treeFilePath.toString(),
 				treesPath.toString(),
 				picltreesPath.toString(),
@@ -941,8 +984,7 @@ public class DialogPresenter {
 		if (logFileWriter != null) {
 			try {
 				logFileWriter.close();
-			} catch (IOException ignored) {
-			}
+			} catch (IOException ignored) {}
 			logFileWriter = null;
 		}
 
@@ -961,6 +1003,35 @@ public class DialogPresenter {
 		} else {
 			controller.getRunStatusLabel().setText("Failed (exit " + exitCode + ")");
 			controller.getStatusLabel().setText("PICL exited with code " + exitCode);
+		}
+	}
+
+	// =================================================================
+	//  Alignment preparation for PICL
+	// =================================================================
+
+	/**
+	 * Decides what file PICL should actually read as its alignment.
+	 * For Phylip input, returns the alignment unchanged. For FASTA,
+	 * parses the file and re-renders it as relaxed Phylip in the
+	 * system temp dir (with the same taxon names — PICL accepts long
+	 * names now, so no remapping is needed).
+	 */
+	private Path prepareAlignmentForPicl(Path alignmentPath) throws IOException {
+		var format = AlignmentFormat.detect(alignmentPath);
+		switch (format) {
+			case PHYLIP:
+				return alignmentPath;
+			case FASTA:
+				var sequences = FastaParser.parseAligned(alignmentPath);
+				var tempPath = Files.createTempFile("picl-input-", ".phy");
+				tempPath.toFile().deleteOnExit();
+				PhylipWriter.write(tempPath, sequences);
+				return tempPath;
+			case UNKNOWN:
+			default:
+				throw new IOException("Unrecognised alignment format (not Phylip or FASTA): "
+									  + alignmentPath);
 		}
 	}
 
@@ -1057,8 +1128,7 @@ public class DialogPresenter {
 		new Thread(() -> {
 			try {
 				p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
-			} catch (InterruptedException ignored) {
-			}
+			} catch (InterruptedException ignored) {}
 			if (p.isAlive()) p.destroyForcibly();
 		}, "picl-stop").start();
 	}
@@ -1131,12 +1201,33 @@ public class DialogPresenter {
 			} catch (IOException ex) {
 				try {
 					logFileWriter.close();
-				} catch (IOException ignored) {
-				}
+				} catch (IOException ignored) {}
 				logFileWriter = null;
 				controller.getStatusLabel().setText("Log file write failed: " + ex.getMessage());
 			}
 		}
+	}
+
+	private void onLineagesFromData(ActionEvent e) {
+		if (!controller.getAlignmentFileTextField().getText().isBlank()) {
+			var file = new File(controller.getAlignmentFileTextField().getText());
+			if (file.exists() && file.canRead()) {
+				try {
+					var sequences = Alignment.parse(file.toPath());
+					controller.getLineageSpeciesTableView().getItems().clear();
+					sequences.stream().map(Alignment.Sequence::name)
+							.forEach(name -> {
+								var id = controller.getLineageSpeciesTableView().getItems().size() + 1;
+								var species = (char) ('a' + id - 1);
+								controller.getLineageSpeciesTableView().getItems()
+										.add(new Settings.LineageAssignment(controller.getLineageSpeciesTableView().getItems().size() + 1, name, "" + species));
+							});
+				} catch (IOException ex) {
+					ex.printStackTrace();
+				}
+			}
+		}
+
 	}
 
 	private void onAutoDetectSpeciesByPrefix(ActionEvent e) {
@@ -1145,7 +1236,7 @@ public class DialogPresenter {
 			var name = la.getLineage();
 			if (name == null) continue;
 			int dot = name.indexOf('.');
-			int us = name.indexOf('_');
+			int us  = name.indexOf('_');
 			int cut = (dot >= 0 && (us < 0 || dot < us)) ? dot : us;
 			if (cut > 0) {
 				var sp = name.substring(0, cut);
@@ -1188,8 +1279,7 @@ public class DialogPresenter {
 	// =================================================================
 
 	private long nextSeed() {
-		return random.nextInt(Integer.MAX_VALUE);
-	}
+		return random.nextInt(Integer.MAX_VALUE); }
 
 	private Window window() {
 		var cancelButton = controller.getCancelButton();
@@ -1199,25 +1289,19 @@ public class DialogPresenter {
 	private static double parseDouble(TextField tf, double dflt) {
 		try {
 			return Double.parseDouble(tf.getText().trim());
-		} catch (Exception ex) {
-			return dflt;
-		}
+		} catch (Exception ex) { return dflt; }
 	}
 
 	private static int parseInt(TextField tf, int dflt) {
 		try {
 			return Integer.parseInt(tf.getText().trim());
-		} catch (Exception ex) {
-			return dflt;
-		}
+		} catch (Exception ex) { return dflt; }
 	}
 
 	private static long parseLong(TextField tf, long dflt) {
 		try {
 			return Long.parseLong(tf.getText().trim());
-		} catch (Exception ex) {
-			return dflt;
-		}
+		} catch (Exception ex) { return dflt; }
 	}
 
 	private void error(String header, Throwable t) {

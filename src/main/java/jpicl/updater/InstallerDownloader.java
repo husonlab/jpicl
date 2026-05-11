@@ -21,7 +21,6 @@
 package jpicl.updater;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -32,35 +31,34 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 
 public class InstallerDownloader {
+	private final static HttpClient client;
 
+	static {
+		client = HttpClient.newHttpClient();
+	}
 	public static Path download(PlatformInstaller installer, Path targetDirectory) throws Exception {
-
-		URI uri = URI.create(installer.getInstallerUrl());
-
-		String fileName = Path.of(uri.getPath()).getFileName().toString();
-
-		Path target = targetDirectory.resolve(fileName);
-
-		HttpClient.newHttpClient().send(HttpRequest.newBuilder(uri).GET().build(), HttpResponse.BodyHandlers.ofFile(target));
-
+		var uri = URI.create(installer.getInstallerUrl());
+		var fileName = Path.of(uri.getPath()).getFileName().toString();
+		var target = targetDirectory.resolve(fileName);
+		client.send(HttpRequest.newBuilder(uri).GET().build(), HttpResponse.BodyHandlers.ofFile(target));
 		verifyChecksum(target, installer.getSha256());
-
 		return target;
 	}
 
 	private static void verifyChecksum(Path file, String expected) throws Exception {
-		String actual = sha256(file);
-
+		if (expected == null || expected.isBlank()) {
+			throw new IOException("Manifest is missing sha256 for this installer");
+		}
+		var actual = sha256(file);
 		if (!actual.equalsIgnoreCase(expected)) {
 			throw new IOException("Checksum verification failed\nExpected: " + expected + "\nActual: " + actual);
 		}
 	}
 
 	private static String sha256(Path file) throws Exception {
-		MessageDigest digest = MessageDigest.getInstance("SHA-256");
-
-		try (InputStream in = Files.newInputStream(file)) {
-			byte[] buffer = new byte[8192];
+		var digest = MessageDigest.getInstance("SHA-256");
+		try (var in = Files.newInputStream(file)) {
+			var buffer = new byte[8192];
 			int read;
 			while ((read = in.read(buffer)) > 0) {
 				digest.update(buffer, 0, read);

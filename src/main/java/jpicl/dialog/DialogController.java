@@ -32,15 +32,14 @@ import javafx.scene.layout.Pane;
  * a typed bag of nodes, the presenter does the work.
  */
 public class DialogController {
-
-	// =================================================================
-	//  @FXML fields  (typed generics added for the choice boxes / table)
-	// =================================================================
-
 	@FXML
 	private Button alignmentBrowseButton;
 	@FXML
 	private TextField alignmentFileTextField;
+	@FXML
+	private Button clearSpeciesListButton;
+	@FXML
+	private Button lineagesFromDataButton;
 	@FXML
 	private Button autoDetectSpeciesByPrefixButton;
 	@FXML
@@ -75,6 +74,10 @@ public class DialogController {
 	private RadioButton generateRandomTreeRadioButton;
 	@FXML
 	private Button importSpeciesMappingButton;
+	@FXML
+	private Menu windowMenu;
+	@FXML
+	private MenuItem aboutMenuItem;
 	@FXML
 	private CheckBox includeAllSitesCheckBox;
 	@FXML
@@ -130,6 +133,14 @@ public class DialogController {
 	@FXML
 	private TextField treeSearchIterationsTextField;
 	@FXML
+	private TextField multiIterTextField;
+	@FXML
+	private TextField probBoundTextField;
+	@FXML
+	private TextField testIncrTextField;
+	@FXML
+	private TextField optSlopeTextField;
+	@FXML
 	private ChoiceBox<Settings.TreeSearchMethod> treeSearchMethodChoiceBox;
 	@FXML
 	private TitledPane treeSearchTitledPane;
@@ -140,7 +151,6 @@ public class DialogController {
 	@FXML
 	private CheckBox verboseOutputCheckBox;
 
-	// Files section at top of Settings tab
 	@FXML
 	private TextField outTreeFileTextField;
 	@FXML
@@ -158,7 +168,6 @@ public class DialogController {
 	@FXML
 	private Label bootstrapPathLabel;
 
-	// Log tab + execution controls
 	@FXML
 	private TabPane mainTabPane;
 	@FXML
@@ -182,7 +191,6 @@ public class DialogController {
 	@FXML
 	private TextArea logTabTextArea;
 
-	// Output tab (textual tree-info view)
 	@FXML
 	private Tab outputTab;
 	@FXML
@@ -196,7 +204,6 @@ public class DialogController {
 	@FXML
 	private TextArea outputTextArea;
 
-	// Tree tab (graphical phylogram view of the .tre file)
 	@FXML
 	private Tab treeTab;
 	@FXML
@@ -204,7 +211,6 @@ public class DialogController {
 	@FXML
 	private Pane treeCanvasPane;
 
-	// Menu bar
 	@FXML
 	private MenuBar menuBar;
 	@FXML
@@ -249,12 +255,8 @@ public class DialogController {
 	private RadioMenuItem outputTabMenuItem;
 	@FXML
 	private RadioMenuItem treeTabMenuItem;
-
-
-
-	// =================================================================
-	//  Getters  (one per @FXML field, in declaration order)
-	// =================================================================
+	@FXML
+	private MenuItem checkForUpdatesMenuItem;
 
 	public Button getAlignmentBrowseButton() {
 		return alignmentBrowseButton;
@@ -262,6 +264,14 @@ public class DialogController {
 
 	public TextField getAlignmentFileTextField() {
 		return alignmentFileTextField;
+	}
+
+	public Button getClearSpeciesListButton() {
+		return clearSpeciesListButton;
+	}
+
+	public Button getLineagesFromDataButton() {
+		return lineagesFromDataButton;
 	}
 
 	public Button getAutoDetectSpeciesByPrefixButton() {
@@ -334,6 +344,14 @@ public class DialogController {
 
 	public CheckBox getIncludeAllSitesCheckBox() {
 		return includeAllSitesCheckBox;
+	}
+
+	public MenuItem getAboutMenuItem() {
+		return aboutMenuItem;
+	}
+
+	public Menu getWindowMenu() {
+		return windowMenu;
 	}
 
 	public TableColumn<Settings.LineageAssignment, Integer> getLineageIndexColumn() {
@@ -438,6 +456,22 @@ public class DialogController {
 
 	public TextField getTreeSearchIterationsTextField() {
 		return treeSearchIterationsTextField;
+	}
+
+	public TextField getMultiIterTextField() {
+		return multiIterTextField;
+	}
+
+	public TextField getProbBoundTextField() {
+		return probBoundTextField;
+	}
+
+	public TextField getTestIncrTextField() {
+		return testIncrTextField;
+	}
+
+	public TextField getOptSlopeTextField() {
+		return optSlopeTextField;
 	}
 
 	public ChoiceBox<Settings.TreeSearchMethod> getTreeSearchMethodChoiceBox() {
@@ -658,5 +692,9 @@ public class DialogController {
 
 	public RadioMenuItem getTreeTabMenuItem() {
 		return treeTabMenuItem;
+	}
+
+	public MenuItem getCheckForUpdatesMenuItem() {
+		return checkForUpdatesMenuItem;
 	}
 }

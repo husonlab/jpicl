@@ -27,6 +27,7 @@
                             <MenuItem fx:id="pageSetupMenuItem" text="Page Setup…"/>
                             <SeparatorMenuItem/>
                             <MenuItem fx:id="closeMenuItem" accelerator="Shortcut+W" text="Close"/>
+                            <SeparatorMenuItem/>
                             <MenuItem fx:id="quitMenuItem" accelerator="Shortcut+Q" text="Quit"/>
                         </items>
                     </Menu>
@@ -60,6 +61,13 @@
                                            toggleGroup="$tabsToggleGroup"/>
                         </items>
                     </Menu>
+                    <Menu fx:id="windowMenu" mnemonicParsing="false" text="Window">
+                        <items>
+                            <MenuItem fx:id="aboutMenuItem" mnemonicParsing="false" text="About..."/>
+                            <MenuItem fx:id="checkForUpdatesMenuItem" text="Check for Updates…"/>
+                            <SeparatorMenuItem/>
+                        </items>
+                    </Menu>
                 </menus>
             </MenuBar>
 
@@ -90,37 +98,45 @@
                                         <ColumnConstraints hgrow="ALWAYS"/>
                                         <ColumnConstraints/>
                                     </columnConstraints>
-                                    <HBox alignment="CENTER_LEFT" spacing="20.0" GridPane.columnIndex="1">
-                                        <children>
+                                    <BorderPane GridPane.columnIndex="1" GridPane.rowIndex="2">
+                                        <left>
+                                            <HBox alignment="CENTER_LEFT" spacing="20.0" BorderPane.alignment="CENTER">
+                                                <children>
 
-                                            <Button fx:id="loadSettingsButton" contentDisplay="CENTER"
-                                                    style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;"
-                                                    text="Load ..."/>
+                                                    <Button fx:id="loadSettingsButton" contentDisplay="CENTER"
+                                                            focusTraversable="false"
+                                                            style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;"
+                                                            text="Load..."/>
 
-                                            <Button fx:id="saveSettingsButton" contentDisplay="CENTER"
-                                                    style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;"
-                                                    text="Save…."/>
-                                        </children>
-                                    </HBox>
+                                                    <Button fx:id="saveSettingsButton" contentDisplay="CENTER"
+                                                            style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;"
+                                                            text="Save…." visible="false"/>
+                                                </children>
+                                            </HBox>
+                                        </left>
+                                        <right>
+                                            <Button fx:id="previewSettingsButton" text="Preview settings file…"
+                                                    BorderPane.alignment="CENTER"/>
+                                        </right>
+                                    </BorderPane>
 
-                                    <Label text="Alignment file" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                                    <Label text="Alignment file" GridPane.columnIndex="0"/>
                                     <TextField fx:id="alignmentFileTextField"
-                                               promptText="Path to the Phylip alignment, e.g. foo.phy"
-                                               GridPane.columnIndex="1" GridPane.rowIndex="1"/>
-                                    <Button fx:id="alignmentBrowseButton" text="Browse…" GridPane.columnIndex="2"
-                                            GridPane.rowIndex="1"/>
+                                               promptText="Path to multiple-alignment file in Phylip or FastA format"
+                                               GridPane.columnIndex="1"/>
+                                    <Button fx:id="alignmentBrowseButton" text="Browse…" GridPane.columnIndex="2"/>
 
-                                    <Label text="Output tree" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                                    <Label text="Output tree" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
                                     <TextField fx:id="outTreeFileTextField"
                                                promptText="Defaults to alignment-base.tre; edit to override"
-                                               GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                                               GridPane.columnIndex="1" GridPane.rowIndex="1"/>
                                     <Button fx:id="outTreeFileBrowseButton" text="Browse…" GridPane.columnIndex="2"
-                                            GridPane.rowIndex="2"/>
-                                    <Label text="Settings"/>
+                                            GridPane.rowIndex="1"/>
+                                    <Label text="Settings" GridPane.rowIndex="2"/>
                                     <rowConstraints>
+                                        <RowConstraints/>
+                                        <RowConstraints/>
                                         <RowConstraints minHeight="10.0" prefHeight="30.0"/>
-                                        <RowConstraints/>
-                                        <RowConstraints/>
                                     </rowConstraints>
                                 </GridPane>
 
@@ -315,7 +331,25 @@
                                         <Label text="Iterations" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
                                         <TextField fx:id="treeSearchIterationsTextField" prefColumnCount="12"
                                                    GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+
+                                        <Label text="Multi_iter" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                                        <TextField fx:id="multiIterTextField" prefColumnCount="12"
+                                                   GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+
+                                        <Label text="Prob_bound" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                                        <TextField fx:id="probBoundTextField" prefColumnCount="12"
+                                                   GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+
+                                        <Label text="Test_incr" GridPane.columnIndex="2" GridPane.rowIndex="2"/>
+                                        <TextField fx:id="testIncrTextField" prefColumnCount="12"
+                                                   GridPane.columnIndex="3" GridPane.rowIndex="2"/>
+
+                                        <Label text="Opt_slope" GridPane.columnIndex="0" GridPane.rowIndex="3"/>
+                                        <TextField fx:id="optSlopeTextField" prefColumnCount="12"
+                                                   GridPane.columnIndex="1" GridPane.rowIndex="3"/>
                                         <rowConstraints>
+                                            <RowConstraints/>
+                                            <RowConstraints/>
                                             <RowConstraints/>
                                             <RowConstraints/>
                                         </rowConstraints>
@@ -377,6 +411,10 @@
                                             <Label fx:id="speciesCountLabel" text="0 species"/>
                                             <Label fx:id="lineagesCountLabel" text="0 lineages"/>
                                             <Region HBox.hgrow="ALWAYS"/>
+                                            <Button fx:id="clearSpeciesListButton" mnemonicParsing="false"
+                                                    text="Clear"/>
+                                            <Button fx:id="lineagesFromDataButton" layoutX="629.0" layoutY="10.0"
+                                                    mnemonicParsing="false" text="From data"/>
                                             <Button fx:id="autoDetectSpeciesByPrefixButton"
                                                     text="Auto-detect by prefix"/>
                                             <Button fx:id="importSpeciesMappingButton" text="Import mapping…"/>
@@ -445,7 +483,7 @@
                                         <padding>
                                             <Insets bottom="8.0" left="12.0" right="12.0" top="8.0"/>
                                         </padding>
-                                        <Label text="Source"/>
+                                        <Label text="File"/>
                                         <Label fx:id="treesFilePathLabel" style="-fx-font-family: 'monospace';"
                                                text="(no run yet)"/>
                                         <Region HBox.hgrow="ALWAYS"/>
@@ -473,7 +511,7 @@
                                         <padding>
                                             <Insets bottom="8.0" left="12.0" right="12.0" top="8.0"/>
                                         </padding>
-                                        <Label text="Source"/>
+                                        <Label text="File"/>
                                         <Label fx:id="treeFilePathLabel" style="-fx-font-family: 'monospace';"
                                                text="(no run yet)"/>
                                     </HBox>
@@ -504,7 +542,6 @@
                 <Region HBox.hgrow="ALWAYS"/>
                 <Button fx:id="cancelButton" text="Cancel"/>
                 <Button fx:id="validateButton" text="Validate"/>
-                <Button fx:id="previewSettingsButton" text="Preview settings file…"/>
                 <Button fx:id="runPiclButton" defaultButton="true" text="Run PICL"/>
             </HBox>
         </VBox>
