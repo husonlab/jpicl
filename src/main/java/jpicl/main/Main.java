@@ -1,5 +1,5 @@
 /*
- * App.java Copyright (C) 2026 Daniel H. Huson
+ * Main.java Copyright (C) 2026 Daniel H. Huson
  *
  *  (Some files contain contributions from other authors, who are then mentioned separately.)
  *
@@ -27,7 +27,11 @@ import jpicl.window.Window;
 /**
  * run the app
  */
-public class App extends Application {
+public class Main extends Application {
+	public static void main(String[] args) {
+		launch(args);
+	}
+
 	@Override
 	public void start(Stage stage) throws Exception {
 		new SplashScreen().showBriefly(2.0);

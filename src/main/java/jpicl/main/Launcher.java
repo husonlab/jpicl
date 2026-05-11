@@ -1,5 +1,5 @@
 /*
- * Version.java Copyright (C) 2026 Daniel H. Huson
+ * Launcher.java Copyright (C) 2026 Daniel H. Huson
  *
  *  (Some files contain contributions from other authors, who are then mentioned separately.)
  *
@@ -17,13 +17,23 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
 package jpicl.main;
 
-public class Version {
-	static public final String VERSION = "0.0.0";
-	static public final String UPDATE_MANIFEST_URL = "https://github.com/husonlab/jpicl/releases/latest/download/manifest.json";
-
-	static public final String NAME = "JPICL";
-	static public final String SHORT_DESCRIPTION = "JPICL (version 0.0.0, built 2026)";
+/**
+ * Bootstrap class that exists solely to work around JavaFX's runtime
+ * check. When a JavaFX app is launched directly (its main class
+ * extends Application), JavaFX requires javafx.graphics to be on the
+ * module path — IntelliJ doesn't set that up by default for a
+ * classpath-style project, which produces the "JavaFX runtime
+ * components are missing" error.
+ * <p>
+ * By making this non-Application class the main entry point, we
+ * bypass the check; Application.launch() inside JPICL.main() then
+ * works fine because the JavaFX classes are loadable on the
+ * classpath.
+ */
+public class Launcher {
+	public static void main(String[] args) {
+		Main.main(args);
+	}
 }

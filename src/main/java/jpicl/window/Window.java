@@ -24,7 +24,7 @@ import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
 import jpicl.dialog.DialogView;
-import jpicl.main.App;
+import jpicl.main.Main;
 
 import java.util.Objects;
 
@@ -36,7 +36,7 @@ public class Window {
 	private Window(Stage stage) {
 		var dialogView = new DialogView();
 		stage.setScene(new Scene(dialogView.getRoot()));
-		stage.getIcons().add(new Image(Objects.requireNonNull(App.class.getResourceAsStream("PICL-512.png"))));
+		stage.getIcons().add(new Image(Objects.requireNonNull(Main.class.getResourceAsStream("PICL-512.png"))));
 
 		this.stage = stage;
 		this.dialogView = dialogView;
