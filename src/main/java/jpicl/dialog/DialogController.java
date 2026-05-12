@@ -22,6 +22,7 @@ package jpicl.dialog;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
 
 /**
@@ -175,6 +176,8 @@ public class DialogController {
 	@FXML
 	private Tab logTab;
 	@FXML
+	private BorderPane logBorderPane;
+	@FXML
 	private TextField piclExecutableTextField;
 	@FXML
 	private Button piclExecutableBrowseButton;
@@ -188,8 +191,6 @@ public class DialogController {
 	private Button copyOutputButton;
 	@FXML
 	private Button stopRunButton;
-	@FXML
-	private TextArea logTabTextArea;
 
 	@FXML
 	private Tab outputTab;
@@ -257,6 +258,175 @@ public class DialogController {
 	private RadioMenuItem treeTabMenuItem;
 	@FXML
 	private MenuItem checkForUpdatesMenuItem;
+
+	private final LogView logView = new LogView();
+
+	@FXML
+	private void initialize() {
+		logBorderPane.setCenter(logView);
+		setupToolTips();
+	}
+
+	private void setupToolTips() {
+
+		modelChoiceBox.setTooltip(new Tooltip("""
+				Model:
+				1 = multilocus or CIS data
+				2 = multilocus or CIS data with discrete gamma-distributed rate variation
+				3 = SNP data
+				4 = JC69 model for gene trees
+				"""));
+
+		includeAllSitesCheckBox.setTooltip(new Tooltip("""
+				Gap:
+				0 = sites containing a gap in at least one lineage are ignored
+				1 = all sites are included; gapped sites are currently ignored at the quartet level
+				"""));
+
+		bootstrapReplicatesTextField.setTooltip(new Tooltip("""
+				Bootstrap:
+				If 0, no bootstrapping is done.
+				If >0, specifies the number of bootstrap replicates used to obtain confidence intervals.
+				            
+				Opt_bl must not be 0 when bootstrapping is requested.
+				"""));
+
+		thetaTextField.setTooltip(new Tooltip("""
+				Theta:
+				Effective population size parameter (4Nₑμ).
+				            
+				Currently this must be provided by the user as a fixed value.
+				"""));
+
+		gammaRateTextField.setTooltip(new Tooltip("""
+				Rate_param:
+				Rate parameter in the discrete gamma model of rate variation.
+				            
+				Optimized automatically if branch lengths or tree search are optimized.
+				"""));
+
+		readFromTreeFileRadioButton.setTooltip(new Tooltip("""
+				Random_tree:
+				0 = read starting tree from treefile.tre
+				1 = generate a random starting tree
+				"""));
+
+		generateRandomTreeRadioButton.setTooltip(new Tooltip("""
+				Random_tree:
+				0 = read starting tree from treefile.tre
+				1 = generate a random starting tree
+				"""));
+
+		branchLengthMethodChoiceBox.setTooltip(new Tooltip("""
+				Opt_bl:
+				0 = no branch length optimization
+				1 = uphill optimization
+				2 = simulated annealing optimization
+				3 = numerical derivatives (not implemented)
+				"""));
+
+		useBranchLengthsFromTreeCheckBox.setTooltip(new Tooltip("""
+				User_bl:
+				1 = use branch lengths from the input tree as starting values
+				0 = evenly spaced branch lengths
+				            
+				Ignored if Opt_bl = 0.
+				"""));
+
+		branchLengthIterationsTextField.setTooltip(new Tooltip("""
+				Num_opt:
+				Number of optimization iterations used for branch length optimization.
+				Used when Opt_bl = 1 or 2.
+				"""));
+
+		randomSeed1TextField.setTooltip(new Tooltip("""
+				Seed1:
+				Random number seed used for repeatability of analyses.
+				"""));
+
+		randomSeed2TextField.setTooltip(new Tooltip("""
+				Seed2:
+				Random number seed used for repeatability of analyses.
+				"""));
+
+		gammaCategoriesTextField.setTooltip(new Tooltip("""
+				Num_cat:
+				Number of categories in the discrete gamma model.
+				            
+				Used only when Model = 2.
+				"""));
+
+		treeSearchMethodChoiceBox.setTooltip(new Tooltip("""
+				Tree_search:
+				0 = no tree search
+				1 = uphill search using NNI proposals
+				2 = simulated annealing search using NNI proposals
+				"""));
+
+		treeSearchIterationsTextField.setTooltip(new Tooltip("""
+				Num_iter:
+				Number of iterations for the tree search.
+				Used for both search methods.
+				"""));
+
+		probBoundTextField.setTooltip(new Tooltip("""
+				Prob_bound:
+				Probability that a node has NOT been selected for rearrangement.
+				            
+				Used as a stopping rule in annealing tree search.
+				Recommended value: 0.05
+				            
+				Ignored unless Tree_search = 2.
+				"""));
+
+		testIncrTextField.setTooltip(new Tooltip("""
+				Test_incr:
+				Frequency with which the cooling schedule is updated
+				in adaptive annealing.
+				            
+				Ignored unless Tree_search = 2.
+				"""));
+
+		optSlopeTextField.setTooltip(new Tooltip("""
+				Opt_slope:
+				Target value for adaptive annealing.
+				            
+				Recommended value: -0.01
+				            
+				Usually should not be modified.
+				            
+				Ignored unless Tree_search = 2.
+				"""));
+
+		coolingRateTextField.setTooltip(new Tooltip("""
+				Beta:
+				Parameter controlling the cooling rate in simulated annealing.
+				            
+				Ignored if Tree_search = 0.
+				"""));
+
+		verboseOutputCheckBox.setTooltip(new Tooltip("""
+				Verbose:
+				0 = normal output
+				1 = print additional debugging and checking information
+				            
+				Normal users should generally leave this disabled.
+				"""));
+
+		lineageSpeciesTableView.setTooltip(new Tooltip("""
+				Species and lineage mapping:
+				            
+				The number of species is followed by a list of species names.
+				            
+				Each remaining line assigns a lineage to a species:
+				            
+				first word  = species name
+				second word = lineage name exactly as it appears in the alignment file
+				            
+				Lineages may appear in any order.
+				"""));
+	}
+
 
 	public Button getAlignmentBrowseButton() {
 		return alignmentBrowseButton;
@@ -566,8 +736,8 @@ public class DialogController {
 		return stopRunButton;
 	}
 
-	public TextArea getLogTabTextArea() {
-		return logTabTextArea;
+	public LogView getLogView() {
+		return logView;
 	}
 
 	public Tab getOutputTab() {

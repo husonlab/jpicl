@@ -38,6 +38,8 @@ public class Window {
 		stage.setScene(new Scene(dialogView.getRoot()));
 		stage.getIcons().add(new Image(Objects.requireNonNull(Main.class.getResourceAsStream("PICL-512.png"))));
 
+		stage.getScene().getStylesheets().add(Objects.requireNonNull(getClass().getResource("Window.css")).toExternalForm());
+
 		this.stage = stage;
 		this.dialogView = dialogView;
 

@@ -681,7 +681,7 @@ public class Settings {
 			&& (treeFile == null || treeFile.isBlank()))
 			problems.add("Tree file is empty but starting tree is set to read from file.");
 		if (!branchLengthMethod.isImplemented())
-			problems.add(branchLengthMethod.displayName() + " is not implemented in PICL.");
+			problems.add(branchLengthMethod.displayName() + " is not yet implemented in PICL.");
 		return problems;
 	}
 }

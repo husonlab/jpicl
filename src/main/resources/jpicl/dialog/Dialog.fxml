@@ -1,6 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
+  ~ Dialog.fxml Copyright (C) 2026 Daniel H. Huson
+  ~
+  ~  (Some files contain contributions from other authors, who are then mentioned separately.)
+  ~
+  ~  This program is free software: you can redistribute it and/or modify
+  ~  it under the terms of the GNU General Public License as published by
+  ~  the Free Software Foundation, either version 3 of the License, or
+  ~  (at your option) any later version.
+  ~
+  ~  This program is distributed in the hope that it will be useful,
+  ~  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~  GNU General Public License for more details.
+  ~
+  ~  You should have received a copy of the GNU General Public License
+  ~  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  ~
+  -->
+<!--
     PICL settings — JavaFX view.
     All interactive controls have an fx:id so IntelliJ's
     "Create controller class" action can generate fields and
@@ -328,26 +347,33 @@
                                             <Label fx:id="coolingRateHintLabel" text="used when SA selected"/>
                                         </HBox>
 
-                                        <Label text="Iterations" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                                        <Label text="Max number of iterations" GridPane.columnIndex="0"
+                                               GridPane.rowIndex="1"/>
                                         <TextField fx:id="treeSearchIterationsTextField" prefColumnCount="12"
                                                    GridPane.columnIndex="1" GridPane.rowIndex="1"/>
 
-                                        <Label text="Multi_iter" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                                        <Label text="Multi_iter (advanced)" GridPane.rowIndex="3"/>
                                         <TextField fx:id="multiIterTextField" prefColumnCount="12"
                                                    GridPane.columnIndex="3" GridPane.rowIndex="1"/>
 
-                                        <Label text="Prob_bound" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                                        <Label text="Prob_bound" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
                                         <TextField fx:id="probBoundTextField" prefColumnCount="12"
-                                                   GridPane.columnIndex="1" GridPane.rowIndex="2"/>
-
-                                        <Label text="Test_incr" GridPane.columnIndex="2" GridPane.rowIndex="2"/>
-                                        <TextField fx:id="testIncrTextField" prefColumnCount="12"
-                                                   GridPane.columnIndex="3" GridPane.rowIndex="2"/>
-
-                                        <Label text="Opt_slope" GridPane.columnIndex="0" GridPane.rowIndex="3"/>
-                                        <TextField fx:id="optSlopeTextField" prefColumnCount="12"
                                                    GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+
+                                        <Label text="Test_incr (advanced)" GridPane.columnIndex="2"
+                                               GridPane.rowIndex="3"/>
+                                        <TextField fx:id="testIncrTextField" prefColumnCount="12"
+                                                   GridPane.columnIndex="3" GridPane.rowIndex="3"/>
+
+                                        <Label text="Opt_slope (advanced)" GridPane.rowIndex="4"/>
+                                        <TextField fx:id="optSlopeTextField" prefColumnCount="12"
+                                                   GridPane.columnIndex="1" GridPane.rowIndex="4"/>
+                                        <Separator prefWidth="200.0" GridPane.rowIndex="2"/>
+                                        <Separator prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                                        <Separator prefWidth="200.0" GridPane.columnIndex="2" GridPane.rowIndex="2"/>
+                                        <Separator prefWidth="200.0" GridPane.columnIndex="3" GridPane.rowIndex="2"/>
                                         <rowConstraints>
+                                            <RowConstraints/>
                                             <RowConstraints/>
                                             <RowConstraints/>
                                             <RowConstraints/>
@@ -439,7 +465,7 @@
 
                 <Tab fx:id="logTab" text="Log">
                     <content>
-                        <BorderPane>
+                        <BorderPane fx:id="logBorderPane">
                             <top>
                                 <VBox>
                                     <HBox alignment="CENTER_LEFT" spacing="8.0">
@@ -467,8 +493,6 @@
                                 </VBox>
                             </top>
                             <center>
-                                <TextArea fx:id="logTabTextArea" editable="false" style="-fx-font-family: 'monospace';"
-                                          wrapText="false"/>
                             </center>
                         </BorderPane>
                     </content>

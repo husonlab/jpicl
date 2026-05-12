@@ -77,15 +77,18 @@ public class DrawPhylogram {
 			var vX = transformX.apply(v.getX());
 			var vY = transformY.apply(v.getY());
 			var shape = new Circle(vX, vY, 1.5);
+			shape.getStyleClass().add("tree-node");
 			nodeGroup.getChildren().add(shape);
 			if (v.getLabel() != null && !v.getLabel().isBlank()) {
 				var label = new Label(v.getLabel());
+				label.getStyleClass().add("tree-label");
 				label.setLayoutX(vX + shape.getRadius() + 4);
 				label.setLayoutY(vY - label.getFont().getSize() / 2);
 				nodeLabelGroup.getChildren().add(label);
 			}
 			if (!v.isLeaf() && v.getParent() != null && v.getConfidence() >= 0) {
 				var label = new Label("%.1f".formatted(v.getConfidence()));
+				label.getStyleClass().add("tree-label");
 				label.setLayoutX(vX + 3);
 				label.setLayoutY(vY + 3);
 				edgeLabelGroup.getChildren().add(label);
@@ -94,6 +97,7 @@ public class DrawPhylogram {
 				var wX = transformX.apply(w.getX());
 				var wY = transformY.apply(w.getY());
 				var path = new Path(new MoveTo(vX, vY), new LineTo(vX, wY), new LineTo(wX, wY));
+				path.getStyleClass().add("tree-edge");
 				edgeGroup.getChildren().add(path);
 			}
 		});

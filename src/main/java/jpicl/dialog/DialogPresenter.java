@@ -52,6 +52,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.Random;
 import java.util.function.Consumer;
 
@@ -284,11 +285,9 @@ public class DialogPresenter {
 	private static void applyDarkMode(Scene scene, boolean dark) {
 		var root = scene.getRoot();
 		if (dark) {
-			root.setStyle("-fx-base: #2b2b2b; -fx-background: #2b2b2b;"
-						  + " -fx-control-inner-background: #2b2b2b;"
-						  + " -fx-text-base-color: #e8e8e8;");
+			scene.getStylesheets().add(Objects.requireNonNull(DialogPresenter.class.getResource("Dark.css")).toExternalForm());
 		} else {
-			root.setStyle("");
+			scene.getStylesheets().remove(Objects.requireNonNull(DialogPresenter.class.getResource("Dark.css")).toExternalForm());
 		}
 	}
 
@@ -332,7 +331,7 @@ public class DialogPresenter {
 
 	private Node nodeToPrint() {
 		var sel = controller.getMainTabPane().getSelectionModel().getSelectedItem();
-		if (sel == controller.getLogTab()) return controller.getLogTabTextArea();
+		if (sel == controller.getLogTab()) return controller.getLogView();
 		if (sel == controller.getOutputTab()) return controller.getOutputTextArea();
 		return controller.getMainTabPane();
 	}
@@ -392,10 +391,8 @@ public class DialogPresenter {
 		controller.getStopRunButton().disableProperty().bind(running.not());
 
 		// Empty Output → Clear/Copy disabled.
-		controller.getClearOutputButton().disableProperty().bind(
-				controller.getLogTabTextArea().textProperty().isEmpty());
-		controller.getCopyOutputButton().disableProperty().bind(
-				controller.getLogTabTextArea().textProperty().isEmpty());
+		controller.getClearOutputButton().disableProperty().bind(controller.getLogView().emptyProperty());
+		controller.getCopyOutputButton().disableProperty().bind(controller.getLogView().emptyProperty());
 
 		// Indeterminate progress bar visible only while a run is in flight.
 		var runProgressBar = controller.getRunProgressBar();
@@ -562,7 +559,7 @@ public class DialogPresenter {
 
 		controller.getPiclExecutableBrowseButton().setOnAction(e -> browseForFile(
 				controller.getPiclExecutableTextField(), "Executable", "*"));
-		controller.getClearOutputButton().setOnAction(e -> controller.getLogTabTextArea().clear());
+		controller.getClearOutputButton().setOnAction(e -> controller.getLogView().clear());
 		controller.getCopyOutputButton().setOnAction(this::onCopyOutput);
 		controller.getStopRunButton().setOnAction(this::onStopRun);
 
@@ -884,7 +881,7 @@ public class DialogPresenter {
 
 		// Switch the user to the Log tab and clear previous output.
 		controller.getMainTabPane().getSelectionModel().select(controller.getLogTab());
-		controller.getLogTabTextArea().clear();
+		controller.getLogView().clear();
 
 		// Open the log file before any appendOutput call.
 		try {
@@ -1134,9 +1131,8 @@ public class DialogPresenter {
 	}
 
 	private void onCopyOutput(ActionEvent e) {
-		var content = new ClipboardContent();
-		content.putString(controller.getLogTabTextArea().getText());
-		Clipboard.getSystemClipboard().setContent(content);
+		if (!controller.getLogView().copySelectedLines())
+			controller.getLogView().copyAllLines();
 		controller.getStatusLabel().setText("Output copied to clipboard");
 	}
 
@@ -1193,7 +1189,7 @@ public class DialogPresenter {
 	 * .log file (when one is open).
 	 */
 	private void appendOutput(String text) {
-		controller.getLogTabTextArea().appendText(text);
+		controller.getLogView().appendText(text);
 		if (logFileWriter != null) {
 			try {
 				logFileWriter.write(text);
