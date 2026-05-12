@@ -17,7 +17,7 @@
         <javafx.version>22.0.2</javafx.version>
         <javafx.plugin.version>0.0.8</javafx.plugin.version>
 
-        <main.class>jpicl.main.Main</main.class>
+        <main.class>jpicl.main.Launcher</main.class>
     </properties>
 
     <name>jpicl</name>
