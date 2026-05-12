@@ -43,9 +43,15 @@ public class VersionComparator {
 	}
 
 	private static String normalize(String v) {
-		var dash = v.indexOf('-');
-		var plus = v.indexOf('+');
-		var cut = (dash < 0) ? plus : (plus < 0 ? dash : Math.min(dash, plus));
+		if (v == null || v.isBlank() || "dev".equals(v)) return "0";
+		int cut = -1;
+		for (int i = 0; i < v.length(); i++) {
+			char c = v.charAt(i);
+			if (c != '.' && !Character.isDigit(c)) {
+				cut = i;
+				break;
+			}
+		}
 		return cut < 0 ? v : v.substring(0, cut);
 	}
 }
