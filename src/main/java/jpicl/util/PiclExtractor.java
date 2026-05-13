@@ -46,6 +46,16 @@ public final class PiclExtractor {
 		var name = key.startsWith("windows") ? "picl.exe" : "picl";
 		var resource = "/native/" + key + "/" + name;
 
+		if (System.getProperty("jpackage.app-path") != null) {
+			Path appPath = Path.of(System.getProperty("jpackage.app-path"));
+			if (key.startsWith("macos")) {
+				return appPath.getParent().getParent().resolve("Resources").resolve("native").resolve("picl");
+			} else {
+				String exe = key.startsWith("windows") ? "picl.exe" : "picl";
+				return appPath.getParent().resolve("native").resolve(exe);
+			}
+		}
+
 		try (InputStream in = PiclExtractor.class.getResourceAsStream(resource)) {
 			if (in == null) {
 				throw new UnsupportedOperationException(
