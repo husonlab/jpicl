@@ -26,6 +26,8 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
 import jpicl.main.Version;
 
+import static jpicl.util.PiclExtractor.platformKey;
+
 /**
  * FXML controller for the PICL settings dialog. It owns the @FXML-injected nodes
  * and exposes them via getters. All wiring, event handlers, and
@@ -195,6 +197,8 @@ public class DialogController {
 	@FXML
 	private Tab outputTab;
 	@FXML
+	private Menu fileMenu;
+	@FXML
 	private Label treesFilePathLabel;
 	@FXML
 	private Button reloadTreeButton;
@@ -260,11 +264,17 @@ public class DialogController {
 	private RadioMenuItem treeTabMenuItem;
 	@FXML
 	private MenuItem checkForUpdatesMenuItem;
+	@FXML
+	private MenuItem openGitHubMenuItem;
 
 	private final LogView logView = new LogView();
 
 	@FXML
 	private void initialize() {
+		if (platformKey().startsWith("macos")) {
+			getMenuBar().setUseSystemMenuBar(true);
+			fileMenu.getItems().remove(quitMenuItem);
+		}
 		logBorderPane.setCenter(logView);
 		logView.appendLine(Version.SHORT_DESCRIPTION + "\n");
 		setupToolTips();
@@ -852,5 +862,9 @@ public class DialogController {
 
 	public MenuItem getCheckForUpdatesMenuItem() {
 		return checkForUpdatesMenuItem;
+	}
+
+	public MenuItem getOpenGitHubMenuItem() {
+		return openGitHubMenuItem;
 	}
 }

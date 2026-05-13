@@ -218,6 +218,8 @@ public class DialogPresenter {
 		controller.getAboutMenuItem().setOnAction(e -> {
 			new SplashScreen().showUntilDismissed();
 		});
+
+		controller.getOpenGitHubMenuItem().setOnAction(e -> WebBrowser.openURL(Version.GITHUB_PAGE));
 	}
 
 	/**

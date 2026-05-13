@@ -38,15 +38,13 @@ public class Version {
 	public static final String VERSION = resolveVersion();
 
 	/**
-	 * URL of the update manifest JSON served by your release
-	 * infrastructure. Edit this to point at the real location once
-	 * you publish your first manifest.
+	 * URL of the update manifest JSON .
 	 */
-	public static final String UPDATE_MANIFEST_URL =
-			"https://github.com/husonlab/jpicl/releases/latest/download/manifest.json";
+	public static final String UPDATE_MANIFEST_URL = "https://github.com/husonlab/jpicl/releases/latest/download/manifest.json";
 
-	public static final String SHORT_DESCRIPTION =
-			NAME + " (version " + VERSION + ") - License GPL v3";
+	public static final String SHORT_DESCRIPTION = NAME + " (version " + VERSION + ") - License GPL v3";
+
+	public static final String GITHUB_PAGE = "https://github.com/husonlab/jpicl";
 
 	private static String resolveVersion() {
 		var pkg = Version.class.getPackage();

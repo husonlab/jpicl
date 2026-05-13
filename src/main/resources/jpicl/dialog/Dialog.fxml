@@ -36,7 +36,7 @@
         <VBox>
             <MenuBar fx:id="menuBar" useSystemMenuBar="true">
                 <menus>
-                    <Menu text="File">
+                    <Menu fx:id="fileMenu" text="File">
                         <items>
                             <MenuItem fx:id="newMenuItem" accelerator="Shortcut+N" text="New…"/>
                             <MenuItem fx:id="openMenuItem" accelerator="Shortcut+O" text="Open…"/>
@@ -87,13 +87,14 @@
                     <Menu fx:id="windowMenu" mnemonicParsing="false" text="Window">
                         <items>
                             <MenuItem fx:id="aboutMenuItem" mnemonicParsing="false" text="About..."/>
+                            <SeparatorMenuItem/>
+                            <MenuItem fx:id="openGitHubMenuItem" mnemonicParsing="false" text="Project on GitHub..."/>
                             <MenuItem fx:id="checkForUpdatesMenuItem" text="Check for Updates…"/>
                             <SeparatorMenuItem/>
                         </items>
                     </Menu>
                 </menus>
             </MenuBar>
-
             <ToolBar fx:id="topToolBar"/>
         </VBox>
     </top>
