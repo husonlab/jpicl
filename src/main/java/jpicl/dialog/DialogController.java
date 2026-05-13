@@ -24,6 +24,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
+import jpicl.main.Version;
 
 /**
  * FXML controller for the PICL settings dialog. It owns the @FXML-injected nodes
@@ -265,6 +266,7 @@ public class DialogController {
 	@FXML
 	private void initialize() {
 		logBorderPane.setCenter(logView);
+		logView.appendLine(Version.SHORT_DESCRIPTION + "\n");
 		setupToolTips();
 	}
 

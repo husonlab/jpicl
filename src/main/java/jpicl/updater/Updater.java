@@ -69,10 +69,7 @@ public class Updater {
 
 	private volatile UpdateManifest availableUpdate;
 
-	public Updater(
-			String currentVersion,
-			URI manifestUri,
-			Path downloadDirectory) {
+	public Updater(String currentVersion, URI manifestUri, Path downloadDirectory) {
 
 		this.currentVersion = Objects.requireNonNull(currentVersion);
 		this.manifestUri = Objects.requireNonNull(manifestUri);
@@ -96,20 +93,15 @@ public class Updater {
 		checking.set(true);
 
 		CompletableFuture
-				.supplyAsync(this::downloadManifest, executorService)
-				.thenAccept(manifest -> {
-
+				.supplyAsync(this::downloadManifest, executorService).thenAccept(manifest -> {
 					try {
 						if (manifest == null)
 							return;
-
 						if (VersionComparator.isNewer(manifest.getLatestVersion(), currentVersion)) {
 							availableUpdate = manifest;
 							Platform.runLater(() -> {
 								updateAvailable.set(true);
-								statusMessage.set(
-										"Update available: "
-										+ manifest.getLatestVersion());
+								statusMessage.set("Update available: " + manifest.getLatestVersion());
 							});
 						} else {
 							Platform.runLater(() -> {
@@ -124,7 +116,6 @@ public class Updater {
 				})
 				.exceptionally(ex -> {
 					ex.printStackTrace();
-
 					Platform.runLater(() -> {
 						checking.set(false);
 						statusMessage.set("Update check failed: " + ex.getMessage());
@@ -137,21 +128,13 @@ public class Updater {
 	 * Downloads and parses the update manifest.
 	 */
 	private UpdateManifest downloadManifest() {
-
 		try {
-			HttpRequest request = HttpRequest.newBuilder(manifestUri)
-					.header("Accept", "application/json")
-					.GET().build();
-
+			HttpRequest request = HttpRequest.newBuilder(manifestUri).header("Accept", "application/json").GET().build();
 			HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
 			if (response.statusCode() != 200) {
-
 				throw new IOException("Manifest request failed: HTTP " + response.statusCode());
 			}
-
 			return JsonUtils.MAPPER.readValue(response.body(), UpdateManifest.class);
-
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
 		}
@@ -175,32 +158,20 @@ public class Updater {
 
 			try {
 				PlatformInstaller installer = availableUpdate.getInstallerForCurrentPlatform();
-
 				if (installer == null) {
-
 					throw new IllegalStateException("No installer available for current platform");
 				}
-
 				Files.createDirectories(downloadDirectory);
-
 				Platform.runLater(() -> statusMessage.set("Downloading update..."));
-
-				Path downloaded =
-						InstallerDownloader.download(installer, downloadDirectory);
-
+				Path downloaded = InstallerDownloader.download(installer, downloadDirectory);
 				Platform.runLater(() -> {
 					downloadProgress.set(1.0);
 					statusMessage.set("Download complete");
 				});
-
 				return downloaded;
-
 			} catch (Exception ex) {
-
 				Platform.runLater(() -> statusMessage.set("Download failed: " + ex.getMessage()));
-
 				throw new RuntimeException(ex);
-
 			} finally {
 				Platform.runLater(() -> downloading.set(false));
 			}
@@ -221,9 +192,7 @@ public class Updater {
 			System.exit(0);
 
 		} catch (Exception ex) {
-
 			ex.printStackTrace();
-
 			statusMessage.set("Failed to launch installer: " + ex.getMessage());
 		}
 	}

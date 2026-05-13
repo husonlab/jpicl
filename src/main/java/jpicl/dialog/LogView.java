@@ -31,7 +31,6 @@ import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.BorderPane;
-import jpicl.main.Version;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -126,7 +125,6 @@ public class LogView extends BorderPane {
 		} else {
 			Platform.runLater(lines::clear);
 		}
-		Platform.runLater(() -> appendLine(Version.SHORT_DESCRIPTION));
 	}
 
 	public ListView<String> getListView() {

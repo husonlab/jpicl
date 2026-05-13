@@ -46,7 +46,7 @@ public class Version {
 			"https://github.com/husonlab/jpicl/releases/latest/download/manifest.json";
 
 	public static final String SHORT_DESCRIPTION =
-			NAME + " (version " + VERSION + ")";
+			NAME + " (version " + VERSION + ") - License GPL v3";
 
 	private static String resolveVersion() {
 		var pkg = Version.class.getPackage();

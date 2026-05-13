@@ -61,7 +61,7 @@ import java.util.function.Consumer;
  * settings dialog.The constructor performs every
  * configure-* call so that by the time it returns the dialog is fully
  * live and bound.
- *
+ * <p>
  * The {@link Settings} instance is the source of truth. The UI is
  * populated from it ({@link #applyToUi(Settings)}) and edits are
  * pushed back ({@link #pullFromUi(Settings)}) on demand.
@@ -82,13 +82,19 @@ public class DialogPresenter {
 	 * True while a PICL process is running. Drives Run/Stop button enable state.
 	 */
 	private final SimpleBooleanProperty running = new SimpleBooleanProperty(false);
-	/** The currently running process, or null. */
+	/**
+	 * The currently running process, or null.
+	 */
 	private Process currentProcess;
 
-	/** Writer to the per-run log file; null when no run is in flight. */
+	/**
+	 * Writer to the per-run log file; null when no run is in flight.
+	 */
 	private BufferedWriter logFileWriter;
 
-	/** Last tree file path loaded into the Output tab (null if none). */
+	/**
+	 * Last tree file path loaded into the Output tab (null if none).
+	 */
 	private Path lastTreeFile;
 
 	/**
@@ -98,13 +104,19 @@ public class DialogPresenter {
 	 */
 	private String lastAutoDerivedOutputTree = "";
 
-	/** Tree-info path written by picl in the most recent run; null if no run yet. */
+	/**
+	 * Tree-info path written by picl in the most recent run; null if no run yet.
+	 */
 	private Path pendingTreeInfoPath;
 
-	/** Output tree (.tre) path written by picl in the most recent run; null if no run yet. */
+	/**
+	 * Output tree (.tre) path written by picl in the most recent run; null if no run yet.
+	 */
 	private Path pendingOutTreePath;
 
-	/** Last successfully parsed tree root, retained so we can redraw on resize. */
+	/**
+	 * Last successfully parsed tree root, retained so we can redraw on resize.
+	 */
 	private TreeNode lastDrawnTreeRoot;
 	// -----------------------------------------------------------------
 	//  Construction — does ALL the wiring
@@ -128,7 +140,8 @@ public class DialogPresenter {
 	}
 
 	public Settings getSettings() {
-		return settings; }
+		return settings;
+	}
 
 	// =================================================================
 	//  Menu bar wiring
@@ -195,9 +208,7 @@ public class DialogPresenter {
 		// Check for Updates… — single user-driven check, no auto-poll.
 		// UpdaterUI handles all three outcomes (up-to-date / available /
 		// failed) and the download+install follow-on if applicable.
-		var updater = new Updater(
-				Version.VERSION,
-				URI.create(Version.UPDATE_MANIFEST_URL),
+		var updater = new Updater(Version.VERSION, URI.create(Version.UPDATE_MANIFEST_URL),
 				UpdaterUI.defaultDownloadsDirectory());
 		var updaterUI = new UpdaterUI(updater,
 				() -> controller.getMenuBar().getScene() != null
@@ -209,7 +220,9 @@ public class DialogPresenter {
 		});
 	}
 
-	/** Bindings that need a live Scene (full-screen, dark mode, windows list). */
+	/**
+	 * Bindings that need a live Scene (full-screen, dark mode, windows list).
+	 */
 	private void installSceneDependentMenuBindings() {
 		var menuBar = controller.getMenuBar();
 		var scene = menuBar.getScene();
@@ -515,7 +528,7 @@ public class DialogPresenter {
 
 		controller.getAlignmentBrowseButton().setOnAction(e -> browseForFile(
 				controller.getAlignmentFileTextField(), "Multiple sequence alignment",
-				"*.phy", "*.phylip", "*.fasta","*.fna"));
+				"*.phy", "*.phylip", "*.fasta", "*.fna"));
 		controller.getOutTreeFileBrowseButton().setOnAction(e -> browseForSaveFile(
 				controller.getOutTreeFileTextField(), "Newick tree",
 				"*.tre", "*.tree", "*.nwk", "*.newick"));
@@ -897,24 +910,25 @@ public class DialogPresenter {
 		// Open the log file before any appendOutput call.
 		try {
 			logFileWriter = Files.newBufferedWriter(logPath);
+			appendOutput(Version.SHORT_DESCRIPTION +"\n");
 		} catch (IOException ex) {
 			logFileWriter = null;
 			controller.getStatusLabel().setText("Could not open log file: " + ex.getMessage());
 		}
 
-		appendOutput("$ " + execPath
-					 + " " + settingsPath
-					 + " " + piclAlignmentPath
-					 + " " + treeFilePath
-					 + " " + treesPath
-					 + " " + picltreesPath
-					 + " " + valuesPath
-					 + " " + bootstrapPath + "\n");
-		if (!piclAlignmentPath.equals(alignmentPath)) {
-			appendOutput("(FASTA input detected; converted to Phylip at " + piclAlignmentPath + ")\n");
+		if (settings.isVerboseOutput()) {
+			appendOutput("$ " + execPath
+						 + " " + settingsPath
+						 + " " + piclAlignmentPath
+						 + " " + treeFilePath
+						 + " " + treesPath
+						 + " " + picltreesPath
+						 + " " + valuesPath
+						 + " " + bootstrapPath + "\n");
+			if (!piclAlignmentPath.equals(alignmentPath)) {
+				appendOutput("(FASTA input detected; converted to Phylip at " + piclAlignmentPath + ")\n");
+			}
 		}
-		appendOutput("(working directory: " + workDir + ")\n");
-		appendOutput("(log file:          " + logPath + ")\n\n");
 
 		// argv layout:
 		//   argv[1] = settings
@@ -924,15 +938,8 @@ public class DialogPresenter {
 		//   argv[5] = picltrees.tre (the user's Output tree — Newick only)
 		//   argv[6] = values
 		//   argv[7] = bootstrap
-		var pb = new ProcessBuilder(
-				execPath.toString(),
-				settingsPath.toString(),
-				piclAlignmentPath.toString(),
-				treeFilePath.toString(),
-				treesPath.toString(),
-				picltreesPath.toString(),
-				valuesPath.toString(),
-				bootstrapPath.toString())
+		var pb = new ProcessBuilder(execPath.toString(), settingsPath.toString(), piclAlignmentPath.toString(),
+				treeFilePath.toString(), treesPath.toString(), picltreesPath.toString(), valuesPath.toString(), bootstrapPath.toString())
 				.directory(workDir)
 				.redirectErrorStream(true);
 
@@ -986,7 +993,8 @@ public class DialogPresenter {
 		if (logFileWriter != null) {
 			try {
 				logFileWriter.close();
-			} catch (IOException ignored) {}
+			} catch (IOException ignored) {
+			}
 			logFileWriter = null;
 		}
 
@@ -1130,7 +1138,8 @@ public class DialogPresenter {
 		new Thread(() -> {
 			try {
 				p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
-			} catch (InterruptedException ignored) {}
+			} catch (InterruptedException ignored) {
+			}
 			if (p.isAlive()) p.destroyForcibly();
 		}, "picl-stop").start();
 	}
@@ -1202,7 +1211,8 @@ public class DialogPresenter {
 			} catch (IOException ex) {
 				try {
 					logFileWriter.close();
-				} catch (IOException ignored) {}
+				} catch (IOException ignored) {
+				}
 				logFileWriter = null;
 				controller.getStatusLabel().setText("Log file write failed: " + ex.getMessage());
 			}
@@ -1237,7 +1247,7 @@ public class DialogPresenter {
 			var name = la.getLineage();
 			if (name == null) continue;
 			int dot = name.indexOf('.');
-			int us  = name.indexOf('_');
+			int us = name.indexOf('_');
 			int cut = (dot >= 0 && (us < 0 || dot < us)) ? dot : us;
 			if (cut > 0) {
 				var sp = name.substring(0, cut);
@@ -1280,7 +1290,8 @@ public class DialogPresenter {
 	// =================================================================
 
 	private long nextSeed() {
-		return random.nextInt(Integer.MAX_VALUE); }
+		return random.nextInt(Integer.MAX_VALUE);
+	}
 
 	private Window window() {
 		var cancelButton = controller.getCancelButton();
@@ -1290,19 +1301,25 @@ public class DialogPresenter {
 	private static double parseDouble(TextField tf, double dflt) {
 		try {
 			return Double.parseDouble(tf.getText().trim());
-		} catch (Exception ex) { return dflt; }
+		} catch (Exception ex) {
+			return dflt;
+		}
 	}
 
 	private static int parseInt(TextField tf, int dflt) {
 		try {
 			return Integer.parseInt(tf.getText().trim());
-		} catch (Exception ex) { return dflt; }
+		} catch (Exception ex) {
+			return dflt;
+		}
 	}
 
 	private static long parseLong(TextField tf, long dflt) {
 		try {
 			return Long.parseLong(tf.getText().trim());
-		} catch (Exception ex) { return dflt; }
+		} catch (Exception ex) {
+			return dflt;
+		}
 	}
 
 	private void error(String header, Throwable t) {
