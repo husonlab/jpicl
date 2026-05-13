@@ -156,7 +156,7 @@ public class DialogPresenter {
 
 		// ----- File -----
 		controller.getNewMenuItem().setOnAction(e -> onNew());
-		controller.getOpenMenuItem().setOnAction(this::onLoadSettings);
+		controller.getOpenMenuItem().setOnAction(this::onLineagesFromData);
 		controller.getSaveMenuItem().setOnAction(this::onSaveSettings);
 		controller.getPrintMenuItem().setOnAction(e -> onPrint());
 		controller.getPageSetupMenuItem().setOnAction(e -> onPageSetup());
