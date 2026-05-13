@@ -288,21 +288,18 @@ public class DialogController {
 				Bootstrap:
 				If 0, no bootstrapping is done.
 				If >0, specifies the number of bootstrap replicates used to obtain confidence intervals.
-				            
 				Opt_bl must not be 0 when bootstrapping is requested.
 				"""));
 
 		thetaTextField.setTooltip(new Tooltip("""
 				Theta:
 				Effective population size parameter (4Nₑμ).
-				            
 				Currently this must be provided by the user as a fixed value.
 				"""));
 
 		gammaRateTextField.setTooltip(new Tooltip("""
 				Rate_param:
 				Rate parameter in the discrete gamma model of rate variation.
-				            
 				Optimized automatically if branch lengths or tree search are optimized.
 				"""));
 
@@ -330,7 +327,6 @@ public class DialogController {
 				User_bl:
 				1 = use branch lengths from the input tree as starting values
 				0 = evenly spaced branch lengths
-				            
 				Ignored if Opt_bl = 0.
 				"""));
 
@@ -353,7 +349,6 @@ public class DialogController {
 		gammaCategoriesTextField.setTooltip(new Tooltip("""
 				Num_cat:
 				Number of categories in the discrete gamma model.
-				            
 				Used only when Model = 2.
 				"""));
 
@@ -373,10 +368,8 @@ public class DialogController {
 		probBoundTextField.setTooltip(new Tooltip("""
 				Prob_bound:
 				Probability that a node has NOT been selected for rearrangement.
-				            
 				Used as a stopping rule in annealing tree search.
 				Recommended value: 0.05
-				            
 				Ignored unless Tree_search = 2.
 				"""));
 
@@ -384,25 +377,20 @@ public class DialogController {
 				Test_incr:
 				Frequency with which the cooling schedule is updated
 				in adaptive annealing.
-				            
 				Ignored unless Tree_search = 2.
 				"""));
 
 		optSlopeTextField.setTooltip(new Tooltip("""
 				Opt_slope:
 				Target value for adaptive annealing.
-				            
 				Recommended value: -0.01
-				            
 				Usually should not be modified.
-				            
 				Ignored unless Tree_search = 2.
 				"""));
 
 		coolingRateTextField.setTooltip(new Tooltip("""
 				Beta:
 				Parameter controlling the cooling rate in simulated annealing.
-				            
 				Ignored if Tree_search = 0.
 				"""));
 
@@ -410,20 +398,15 @@ public class DialogController {
 				Verbose:
 				0 = normal output
 				1 = print additional debugging and checking information
-				            
 				Normal users should generally leave this disabled.
 				"""));
 
 		lineageSpeciesTableView.setTooltip(new Tooltip("""
 				Species and lineage mapping:
-				            
 				The number of species is followed by a list of species names.
-				            
 				Each remaining line assigns a lineage to a species:
-				            
 				first word  = species name
 				second word = lineage name exactly as it appears in the alignment file
-				            
 				Lineages may appear in any order.
 				"""));
 	}

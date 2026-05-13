@@ -106,23 +106,6 @@ public class DialogPresenter {
 
 	/** Last successfully parsed tree root, retained so we can redraw on resize. */
 	private TreeNode lastDrawnTreeRoot;
-
-	/**
-	 * Default location of the PICL binary. First tries to extract a
-	 * bundled binary from the JAR (works once the JAR has been built
-	 * with native/&lt;platform&gt;/picl resources); falls back to the
-	 * developer convention native/picl/src/picl in the project root
-	 * for IDE runs before the bundling step has happened.
-	 */
-	private static String resolveDefaultPiclExecutable() {
-		try {
-			return jpicl.util.PiclExtractor.resolveExecutable().toString();
-		} catch (Exception ex) {
-			return Paths.get(System.getProperty("user.dir"),
-					"native", "picl", "src", "picl").toString();
-		}
-	}
-
 	// -----------------------------------------------------------------
 	//  Construction — does ALL the wiring
 	// -----------------------------------------------------------------
@@ -281,7 +264,7 @@ public class DialogPresenter {
 				stage.toFront();
 				stage.requestFocus();
 			});
-			windowMenu.getItems().add(item);
+			Platform.runLater(() -> windowMenu.getItems().add(item));
 		}
 	}
 
@@ -385,7 +368,7 @@ public class DialogPresenter {
 	// =================================================================
 
 	private void configureOutputTab() {
-		controller.getPiclExecutableTextField().setText(resolveDefaultPiclExecutable());
+		controller.getPiclExecutableTextField().setText(PiclExtractor.resolveExecutable().toFile().getAbsolutePath());
 
 		// Disable Run while running OR while no alignment has been set.
 		// Stop is the inverse — only enabled while a process is alive.

@@ -1,7 +1,5 @@
 package jpicl.util;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -41,13 +39,12 @@ public final class PiclExtractor {
 	 * Returns a path to a runnable PICL binary, extracting from the
 	 * JAR on first use and caching for subsequent calls.
 	 */
-	public static Path resolveExecutable() throws IOException {
+	public static Path resolveExecutable() {
 		var key = platformKey();
 		var name = key.startsWith("windows") ? "picl.exe" : "picl";
-		var resource = "/native/" + key + "/" + name;
 
 		if (System.getProperty("jpackage.app-path") != null) {
-			Path appPath = Path.of(System.getProperty("jpackage.app-path"));
+			var appPath = Path.of(System.getProperty("jpackage.app-path"));
 			if (key.startsWith("macos")) {
 				return appPath.getParent().getParent().resolve("Resources").resolve("native").resolve("picl");
 			} else {
@@ -56,29 +53,13 @@ public final class PiclExtractor {
 			}
 		}
 
-		try (InputStream in = PiclExtractor.class.getResourceAsStream(resource)) {
-			if (in == null) {
-				throw new UnsupportedOperationException(
-						"No PICL binary bundled for platform " + key
-						+ " (expected resource " + resource + ").");
-			}
-			byte[] bytes = in.readAllBytes();
-
-			// 16 hex chars (= 64 bits) is plenty to disambiguate caches.
-			String hash = sha256Hex(bytes).substring(0, 16);
-			Path cacheDir = Path.of(System.getProperty("user.home"), CACHE_ROOT, hash, key);
-			Path target = cacheDir.resolve(name);
-
-			if (Files.isExecutable(target)) return target;
-
-			Files.createDirectories(cacheDir);
-			Files.write(target, bytes);
-			if (!key.startsWith("windows")) {
-				// rwxr-xr-x — anyone who can read the file can run it.
-				target.toFile().setExecutable(true, false);
-			}
-			return target;
+		var dev = Path.of("packaging", "native", key, name);
+		if (!Files.exists(dev))
+			System.err.println("no file");
+		if (Files.isExecutable(dev)) {
+			return dev;
 		}
+		throw new IllegalStateException("PICL executable not found or not executable: " + dev);
 	}
 
 	/**
