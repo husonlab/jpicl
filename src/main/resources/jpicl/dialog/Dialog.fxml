@@ -40,7 +40,11 @@
                         <items>
                             <MenuItem fx:id="newMenuItem" accelerator="Shortcut+N" text="New…"/>
                             <MenuItem fx:id="openMenuItem" accelerator="Shortcut+O" text="Open…"/>
-                            <MenuItem fx:id="saveMenuItem" accelerator="Shortcut+S" text="Save…"/>
+                            <SeparatorMenuItem/>
+                            <MenuItem fx:id="importSettingsMenuItem" accelerator="Shortcut+S"
+                                      text="Import Settings..."/>
+                            <MenuItem fx:id="exportSettingsMenuItem" accelerator="Shortcut+S"
+                                      text="Export Settings..."/>
                             <SeparatorMenuItem/>
                             <MenuItem fx:id="printMenuItem" accelerator="Shortcut+P" text="Print…"/>
                             <MenuItem fx:id="pageSetupMenuItem" text="Page Setup…"/>
@@ -117,35 +121,25 @@
                                         <ColumnConstraints hgrow="ALWAYS"/>
                                         <ColumnConstraints/>
                                     </columnConstraints>
-                                    <BorderPane GridPane.columnIndex="1" GridPane.rowIndex="2">
-                                        <left>
-                                            <HBox alignment="CENTER_LEFT" spacing="20.0" BorderPane.alignment="CENTER">
-                                                <children>
+                                    <FlowPane alignment="CENTER_LEFT" hgap="20.0" GridPane.columnIndex="1"
+                                              GridPane.rowIndex="2">
+                                        <children>
 
-                                                    <Button fx:id="loadSettingsButton" contentDisplay="CENTER"
-                                                            focusTraversable="false"
-                                                            style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;"
-                                                            text="Load..."/>
+                                            <Button fx:id="loadSettingsButton" contentDisplay="CENTER"
+                                                    focusTraversable="false"
+                                                    style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;"
+                                                    text="Import..."/>
+                                            <Button fx:id="previewSettingsButton" text="Preview settings file…"/>
+                                        </children>
+                                    </FlowPane>
 
-                                                    <Button fx:id="saveSettingsButton" contentDisplay="CENTER"
-                                                            style="-fx-padding: 3 10 3 8; -fx-graphic-text-gap: 6;"
-                                                            text="Save…." visible="false"/>
-                                                </children>
-                                            </HBox>
-                                        </left>
-                                        <right>
-                                            <Button fx:id="previewSettingsButton" text="Preview settings file…"
-                                                    BorderPane.alignment="CENTER"/>
-                                        </right>
-                                    </BorderPane>
-
-                                    <Label text="Alignment file" GridPane.columnIndex="0"/>
+                                    <Label text="Input alignment file" GridPane.columnIndex="0"/>
                                     <TextField fx:id="alignmentFileTextField"
                                                promptText="Path to multiple-alignment file in Phylip or FastA format"
                                                GridPane.columnIndex="1"/>
                                     <Button fx:id="alignmentBrowseButton" text="Browse…" GridPane.columnIndex="2"/>
 
-                                    <Label text="Output tree" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                                    <Label text="Output tree file" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
                                     <TextField fx:id="outTreeFileTextField"
                                                promptText="Defaults to alignment-base.tre; edit to override"
                                                GridPane.columnIndex="1" GridPane.rowIndex="1"/>
@@ -468,15 +462,19 @@
                         <BorderPane fx:id="logBorderPane">
                             <top>
                                 <VBox>
-                                    <HBox alignment="CENTER_LEFT" spacing="8.0">
-                                        <padding>
-                                            <Insets bottom="8.0" left="12.0" right="12.0" top="8.0"/>
-                                        </padding>
-                                        <Label text="PICL executable"/>
-                                        <TextField fx:id="piclExecutableTextField" promptText="Path to the picl binary"
-                                                   HBox.hgrow="ALWAYS"/>
-                                        <Button fx:id="piclExecutableBrowseButton" text="Browse…"/>
-                                    </HBox>
+                                    <TitledPane expanded="false" text="Executable">
+                                        <content>
+                                            <HBox alignment="CENTER_LEFT" spacing="8.0">
+                                                <padding>
+                                                    <Insets bottom="8.0" left="12.0" right="12.0" top="8.0"/>
+                                                </padding>
+                                                <Label text="PICL executable"/>
+                                                <TextField fx:id="piclExecutableTextField"
+                                                           promptText="Path to the picl binary" HBox.hgrow="ALWAYS"/>
+                                                <Button fx:id="piclExecutableBrowseButton" text="Browse…"/>
+                                            </HBox>
+                                        </content>
+                                    </TitledPane>
                                     <Separator/>
                                     <HBox alignment="CENTER_LEFT" spacing="8.0">
                                         <padding>

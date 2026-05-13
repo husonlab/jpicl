@@ -109,8 +109,7 @@ public class DialogController {
 	private RadioButton readFromTreeFileRadioButton;
 	@FXML
 	private Button runPiclButton;
-	@FXML
-	private Button saveSettingsButton;
+
 	@FXML
 	private TitledPane speciesAndLineagesTitledPane;
 	@FXML
@@ -219,7 +218,9 @@ public class DialogController {
 	@FXML
 	private MenuItem openMenuItem;
 	@FXML
-	private MenuItem saveMenuItem;
+	private MenuItem exportSettingsMenuItem;
+	@FXML
+	private MenuItem importSettingsMenuItem;
 	@FXML
 	private MenuItem printMenuItem;
 	@FXML
@@ -580,10 +581,6 @@ public class DialogController {
 		return runPiclButton;
 	}
 
-	public Button getSaveSettingsButton() {
-		return saveSettingsButton;
-	}
-
 	public TitledPane getSpeciesAndLineagesTitledPane() {
 		return speciesAndLineagesTitledPane;
 	}
@@ -788,8 +785,12 @@ public class DialogController {
 		return openMenuItem;
 	}
 
-	public MenuItem getSaveMenuItem() {
-		return saveMenuItem;
+	public MenuItem getExportSettingsMenuItem() {
+		return exportSettingsMenuItem;
+	}
+
+	public MenuItem getImportSettingsMenuItem() {
+		return importSettingsMenuItem;
 	}
 
 	public MenuItem getPrintMenuItem() {

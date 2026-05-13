@@ -156,8 +156,11 @@ public class DialogPresenter {
 
 		// ----- File -----
 		controller.getNewMenuItem().setOnAction(e -> onNew());
-		controller.getOpenMenuItem().setOnAction(this::onLineagesFromData);
-		controller.getSaveMenuItem().setOnAction(this::onSaveSettings);
+		controller.getOpenMenuItem().setOnAction(e -> browseForFile(
+				controller.getAlignmentFileTextField(), "Multiple sequence alignment",
+				"*.phy", "*.phylip", "*.fasta", "*.fna"));
+		controller.getExportSettingsMenuItem().setOnAction(this::onSaveSettings);
+		controller.getImportSettingsMenuItem().setOnAction(this::onLoadSettings);
 		controller.getPrintMenuItem().setOnAction(e -> onPrint());
 		controller.getPageSetupMenuItem().setOnAction(e -> onPageSetup());
 		controller.getCloseMenuItem().setOnAction(e -> {
@@ -526,7 +529,6 @@ public class DialogPresenter {
 
 	private void wireButtonHandlers() {
 		controller.getLoadSettingsButton().setOnAction(this::onLoadSettings);
-		controller.getSaveSettingsButton().setOnAction(this::onSaveSettings);
 
 		controller.getAlignmentBrowseButton().setOnAction(e -> browseForFile(
 				controller.getAlignmentFileTextField(), "Multiple sequence alignment",
@@ -812,25 +814,51 @@ public class DialogPresenter {
 		if (outTreeText.isBlank())
 			outTreeText = OutputFiles.deriveOutputTreePath(alignmentPath.toString());
 
-		// Collision avoidance: ask OutputFiles for a path set whose
-		// names share the smallest -N suffix that doesn't collide with
-		// anything on disk. Suffix == 1 means no rename. PICL appends
-		// to some files, so writing into existing ones would silently
-		// mix runs — bumping the whole set keeps a run's output
+		// Collision handling: first check the natural (suffix == 1)
+		// names. If nothing collides we proceed silently. Otherwise we
+		// surface a Finder-style "Keep Both / Stop / Replace" prompt:
+		//   - Keep Both → bump the whole set to the smallest free -N
+		//   - Replace   → delete the colliding natural-name files
+		//   - Stop      → cancel the run
+		// PICL appends to some files, so writing into existing ones
+		// would silently mix runs — every branch keeps a run's output
 		// coherent.
-		var bumped = OutputFiles.bumpUntilFree(alignmentPath.toString(), outTreeText);
-		if (bumped.suffix() > 1) {
-			if (!OutputFiles.confirmRename(outTreeText, bumped, ownerWindow())) {
-				controller.getStatusLabel().setText("Run cancelled.");
-				return;
+		var natural = OutputFiles.naturalPaths(alignmentPath.toString(), outTreeText);
+		OutputFiles.BumpedPaths bumped;
+		if (natural.allClear()) {
+			bumped = natural;
+		} else {
+			var choice = OutputFiles.promptOnCollision(natural, ownerWindow());
+			switch (choice) {
+				case STOP -> {
+					controller.getStatusLabel().setText("Run cancelled.");
+					return;
+				}
+				case KEEP_BOTH -> {
+					bumped = OutputFiles.bumpUntilFree(alignmentPath.toString(), outTreeText);
+					// Reflect the chosen name in the UI so the user sees
+					// what PICL will actually write (and so the path
+					// labels for .trees / .log / .bootstrap auto-update
+					// via their existing text-property listeners).
+					controller.getOutTreeFileTextField().setText(bumped.outTree().toString());
+					controller.getStatusLabel().setText(
+							"Output exists; writing to " + bumped.outTree().getFileName());
+				}
+				case REPLACE -> {
+					try {
+						OutputFiles.deleteSet(natural);
+					} catch (IOException ex) {
+						error("Could not delete existing output files", ex);
+						return;
+					}
+					bumped = natural;
+					controller.getStatusLabel().setText(
+							"Replaced existing " + bumped.outTree().getFileName());
+				}
+				default -> {
+					return;
+				}
 			}
-			// Reflect the chosen name in the UI so the user sees what
-			// PICL will actually write (and so the path labels for
-			// .trees / .log / .bootstrap auto-update via their
-			// existing text-property listeners).
-			controller.getOutTreeFileTextField().setText(bumped.outTree().toString());
-			controller.getStatusLabel().setText(
-					"Output exists; writing to " + bumped.outTree().getFileName());
 		}
 
 		var picltreesPath = bumped.outTree();
@@ -904,12 +932,6 @@ public class DialogPresenter {
 		}
 		appendOutput("(working directory: " + workDir + ")\n");
 		appendOutput("(log file:          " + logPath + ")\n\n");
-
-		try {
-			Files.copy(settingsPath, new File(workDir, "tmp.setting").toPath());
-			Files.copy(piclAlignmentPath, new File(workDir, "tmp.alignment").toPath());
-			Files.copy(treeFilePath, new File(workDir, "tmp.starttree").toPath());
-		} catch (IOException ignored) {}
 
 		// argv layout:
 		//   argv[1] = settings

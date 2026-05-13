@@ -21,10 +21,12 @@
 package jpicl.util;
 
 import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.stage.Window;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -187,6 +189,16 @@ public final class OutputFiles {
 				+ outTreeText + ")");
 	}
 
+	/**
+	 * The natural (suffix == 1) path set — the names that come straight
+	 * from the user's text fields, with no collision avoidance applied.
+	 * Use {@link BumpedPaths#allClear()} on the result to decide whether
+	 * to prompt the user.
+	 */
+	public static BumpedPaths naturalPaths(String alignmentText, String outTreeText) {
+		return pathsAtSuffix(alignmentText, outTreeText, 1);
+	}
+
 	private static BumpedPaths pathsAtSuffix(String alignmentText, String outTreeText, int n) {
 		return new BumpedPaths(n,
 				toAbsoluteOrNull(applySuffix(outTreeText, n)),
@@ -203,32 +215,62 @@ public final class OutputFiles {
 	}
 
 	// =================================================================
-	//  Confirmation dialog
+	//  Collision dialog + deletion
 	// =================================================================
 
 	/**
-	 * Asks the user whether to write to a renamed output set because
-	 * the natural names already exist. Returns true on OK.
+	 * What the user chose when told an output file already exists.
 	 *
-	 * The user can still abort by clicking Cancel — we never silently
-	 * overwrite, and never silently rename.
+	 * <ul>
+	 *   <li>{@link #KEEP_BOTH} — write to a bumped suffix (data-2.tre, …),
+	 *       leaving the existing files untouched.</li>
+	 *   <li>{@link #REPLACE} — delete the colliding natural-name set and
+	 *       write to the original names.</li>
+	 *   <li>{@link #STOP} — cancel the run. Returned for both an explicit
+	 *       Stop click and a dialog dismissal (close button / ESC).</li>
+	 * </ul>
 	 */
-	public static boolean confirmRename(String originalOutTree, BumpedPaths bumped, Window owner) {
-		var msg = "The output tree already exists:\n  " + originalOutTree + "\n\n"
-				  + "Write to this name instead?\n  " + bumped.outTree() + "\n\n"
-				  + "Companion files (.trees, .log, .bootstrap, .values, .settings) "
-				  + "will share the same -" + bumped.suffix() + " suffix.";
+	public enum CollisionChoice {KEEP_BOTH, STOP, REPLACE}
 
-		var alert = new Alert(Alert.AlertType.CONFIRMATION, "",
-				ButtonType.OK, ButtonType.CANCEL);
+	/**
+	 * Asks the user what to do when the natural-name output set already
+	 * exists on disk. Modelled on the macOS Finder copy/replace prompt:
+	 * "Keep Both", "Stop", "Replace".
+	 *
+	 * @param natural the suffix-1 path set the user is about to write to.
+	 *                Used both to describe the collision and to list the
+	 *                files that {@link #deleteSet(BumpedPaths)} would
+	 *                remove on REPLACE.
+	 * @param owner   window to centre the modal on (may be null).
+	 */
+	public static CollisionChoice promptOnCollision(BumpedPaths natural, Window owner) {
+		var stop = new ButtonType("Stop", ButtonBar.ButtonData.CANCEL_CLOSE);
+		var replace = new ButtonType("Replace", ButtonBar.ButtonData.OTHER);
+		var keepBoth = new ButtonType("Keep Both", ButtonBar.ButtonData.OK_DONE);
+
+		var outTreeName = (natural.outTree() == null)
+				? "(output)"
+				: natural.outTree().getFileName().toString();
+
+		var sb = new StringBuilder();
+		sb.append("Files associated with \"").append(outTreeName)
+				.append("\" already exist in this location.\n\n")
+				.append("Choose Keep Both to write to a new name with a numeric suffix ")
+				.append("(e.g. ").append(applySuffix(natural.outTree().toString(), 2))
+				.append(").\n\nChoose Replace to delete the existing files and write to ")
+				.append("the original names. The following files would be replaced:");
+		for (var p : new Path[]{natural.outTree(), natural.treesInfo(), natural.log(),
+				natural.bootstrap(), natural.values(), natural.settings()}) {
+			if (p != null && Files.exists(p)) sb.append("\n  ").append(p);
+		}
+
+		var alert = new Alert(Alert.AlertType.CONFIRMATION, "", replace, stop, keepBoth);
 		alert.setHeaderText("Output file exists");
-		alert.setTitle("Use a new filename?");
+		alert.setTitle("Output file exists");
 		alert.setResizable(true);
 
-		// Replace the content with our own wrapping Label. The default
-		// Alert content node has a baked-in width that truncates long
-		// absolute file paths; this lets us size the dialog properly.
-		var content = new Label(msg);
+		// Replace the content with a wrapping Label so long paths show fully.
+		var content = new Label(sb.toString());
 		content.setWrapText(true);
 		content.setMaxWidth(Double.MAX_VALUE);
 
@@ -239,6 +281,27 @@ public final class OutputFiles {
 
 		if (owner != null) alert.initOwner(owner);
 		Optional<ButtonType> choice = alert.showAndWait();
-		return choice.isPresent() && choice.get() == ButtonType.OK;
+		if (choice.isEmpty()) return CollisionChoice.STOP;
+		var bt = choice.get();
+		if (bt == keepBoth) return CollisionChoice.KEEP_BOTH;
+		if (bt == replace) return CollisionChoice.REPLACE;
+		return CollisionChoice.STOP;
+	}
+
+	/**
+	 * Deletes every existing file in the given path set. Missing entries
+	 * are ignored, so this is safe to call even when only some of the
+	 * natural-name files are present on disk.
+	 * <p>
+	 * Intended for the REPLACE branch of {@link #promptOnCollision}: the
+	 * user has explicitly chosen to overwrite, so we clear the slate
+	 * before launching PICL (which appends to some of these files and
+	 * would otherwise silently mix runs).
+	 */
+	public static void deleteSet(BumpedPaths set) throws IOException {
+		for (var p : new Path[]{set.outTree(), set.treesInfo(), set.log(),
+				set.bootstrap(), set.values(), set.settings()}) {
+			if (p != null) Files.deleteIfExists(p);
+		}
 	}
 }
