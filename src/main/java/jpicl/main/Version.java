@@ -40,7 +40,7 @@ public class Version {
 	/**
 	 * URL of the update manifest JSON .
 	 */
-	public static final String UPDATE_MANIFEST_URL = "https://github.com/husonlab/jpicl-updates/releases/latest/download/manifest.json";
+	public static final String UPDATE_MANIFEST_URL = "https://github.com/husonlab/jpicl/releases/latest/download/manifest.json";
 
 	public static final String SHORT_DESCRIPTION = NAME + " (version " + VERSION + ") - License GPL v3";
 
