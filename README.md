@@ -35,17 +35,10 @@ for macOS (Intel and Apple Silicon), Linux (x86_64), and Windows
 ## Installation
 
 Download the latest installer for your platform from the
-[releases page](https://github.com/your-org/jpicl/releases):
+[releases page](https://github.com/husonlab/jpicl/releases):
 
-- **macOS:** `JPICL-<version>.dmg` (universal — Intel + Apple Silicon)
-- **Windows:** `JPICL-<version>.msi`
-- **Linux:** `JPICL-<version>.deb` or the platform-appropriate
-  package
 
-After install, launch JPICL from your application launcher. The
-bundled PICL binary is extracted into a per-user cache directory on
-first run (`~/.cache/jpicl/picl/` on Linux, `~/Library/Caches/jpicl/`
-on macOS, `%LOCALAPPDATA%\jpicl\` on Windows).
+After install, launch JPICL from your application launcher.
 
 ## Quick start
 
@@ -94,11 +87,6 @@ record the new pointer in a jpicl commit:
 ./scripts/bump-to-lauras-latest-picl.sh
 ```
 
-For cross-platform binaries, push to a branch — the GitHub Actions
-workflow at `.github/workflows/build-picl.yml` builds PICL on all
-four target platforms and bundles the artifacts into a single
-`picl-binaries-all.zip` you can drop into `src/main/resources/native/`.
-
 ## Project layout
 
 ```
@@ -113,23 +101,9 @@ src/main/java/jpicl/
 └── window/         Top-level Stage management
 
 native/picl/        PICL C source (git submodule → lkubatko/PICL)
-scripts/            Helper scripts (compile, bump, dev-server, etc.)
+scripts/            Helper scripts (compile, bump, etc.)
 ```
 
-## How updates work
-
-`Version.UPDATE_MANIFEST_URL` points at a small JSON file describing
-the latest release. When the user picks **View → Check for Updates…**,
-JPICL fetches the manifest, compares its `latestVersion` to
-`Version.VERSION`, and either reports "you're up to date", presents a
-download prompt, or surfaces the network error. Downloads go to
-`~/Downloads`, are SHA-256-verified against the manifest, and can be
-launched directly from the success dialog.
-
-For local testing during development, run
-`./scripts/serve-update-manifest.sh` to start a Python HTTP server
-rooted at the project directory and point `UPDATE_MANIFEST_URL` at
-`http://localhost:8000/example-update-manifest.json`.
 
 ## Credits
 
