@@ -420,7 +420,6 @@ public class DialogPresenter {
 		var treeSearchMethodChoiceBox = controller.getTreeSearchMethodChoiceBox();
 
 		modelChoiceBox.setItems(FXCollections.observableArrayList(Settings.Model.values()));
-		modelChoiceBox.setTooltip(new Tooltip("Substitution / coalescent model"));
 
 		branchLengthMethodChoiceBox.setItems(
 				FXCollections.observableArrayList(Settings.BranchLengthMethod.values()));
@@ -429,7 +428,7 @@ public class DialogPresenter {
 		branchLengthMethodChoiceBox.valueProperty().addListener((obs, prev, next) -> {
 			if (next != null && !next.isImplemented()) {
 				branchLengthMethodChoiceBox.setValue(Settings.BranchLengthMethod.UPHILL);
-				controller.getStatusLabel().setText(next.displayName() + " is not implemented in PICL.");
+				controller.getStatusLabel().setText(next.displayName() + " is not yet implemented in PICL.");
 			}
 		});
 

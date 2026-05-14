@@ -36,7 +36,9 @@ public class Settings {
 	 */
 	public enum Model {
 		CIS(1, "Multilocus / CIS"),
-		CIS_GAMMA(2, "Multilocus / CIS with gamma");
+		CIS_GAMMA(2, "Multilocus / CIS with gamma"),
+		SNP(3, "SNP data"),
+		JC69(4, "model for gene trees");
 
 		private final int code;
 		private final String displayName;
@@ -67,9 +69,10 @@ public class Settings {
 
 	/**
 	 * Branch-length optimisation method. PICL codes 1 = Uphill,
-	 * 3 = numerical derivatives (currently not implemented in PICL).
+	 * 3 = numerical derivatives (not yet implemented in PICL).
 	 */
 	public enum BranchLengthMethod {
+		NONE(0, "None", true),
 		UPHILL(1, "Uphill", true),
 		NUMERICAL_DERIVATIVES(3, "Numerical derivatives", false);
 
@@ -110,6 +113,7 @@ public class Settings {
 	 * Tree-search method. PICL codes 1 = NNI, 2 = simulated-annealing NNI.
 	 */
 	public enum TreeSearchMethod {
+		NONE(0, "None", false),
 		NNI(1, "NNI", false),
 		SA_NNI(2, "Simulated annealing NNI", true);
 

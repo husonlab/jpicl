@@ -287,7 +287,7 @@ public class DialogController {
 				1 = multilocus or CIS data
 				2 = multilocus or CIS data with discrete gamma-distributed rate variation
 				3 = SNP data
-				4 = JC69 model for gene trees
+				4 = JC69 model for gene trees (composite likelihood under the JC69 model without the multispecies coalescent)
 				"""));
 
 		includeAllSitesCheckBox.setTooltip(new Tooltip("""
@@ -329,10 +329,12 @@ public class DialogController {
 
 		branchLengthMethodChoiceBox.setTooltip(new Tooltip("""
 				Opt_bl:
-				0 = no branch length optimization
+				0 = no branch length optimization (composite likelihood will be evaluated for
+				 the user-specified (if Random_tree = 0)
+				 or randomly generated (if Random_tree = 1) tree)
 				1 = uphill optimization
 				2 = simulated annealing optimization
-				3 = numerical derivatives (not implemented)
+				3 = numerical derivatives (not yet implemented)
 				"""));
 
 		useBranchLengthsFromTreeCheckBox.setTooltip(new Tooltip("""
@@ -366,7 +368,7 @@ public class DialogController {
 
 		treeSearchMethodChoiceBox.setTooltip(new Tooltip("""
 				Tree_search:
-				0 = no tree search
+				0 = none (user specified or randomly generated tree will be evaluated)
 				1 = uphill search using NNI proposals
 				2 = simulated annealing search using NNI proposals
 				"""));

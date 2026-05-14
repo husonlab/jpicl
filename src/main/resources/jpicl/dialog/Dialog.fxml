@@ -314,7 +314,7 @@
                                         </GridPane>
 
                                         <Label fx:id="branchLengthOptimisationHintLabel"
-                                               text="Numerical derivatives (3) are disabled — not implemented in PICL."/>
+                                               text="Numerical derivatives (3) are disabled — not yet implemented in PICL."/>
                                     </VBox>
                                 </TitledPane>
 
