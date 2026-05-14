@@ -35,7 +35,7 @@ for macOS (Intel and Apple Silicon), Linux (x86_64), and Windows
 ## Installation
 
 Download the latest installer for your platform from the
-[releases page](https://github.com/husonlab/jpicl/releases):
+[releases page](https://github.com/husonlab/jpicl/releases).
 
 
 After install, launch JPICL from your application launcher.
