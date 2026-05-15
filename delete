@@ -1,0 +1,9 @@
+packaging/mac
+packaging/windows
+packaging/linux
+example-update-manifest.json
+LICENSE
+release-notes
+README.md
+scripts
+.github
