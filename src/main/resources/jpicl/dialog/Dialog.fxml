@@ -349,11 +349,11 @@
 
                                         <Label text="Multi_iter (advanced)" GridPane.rowIndex="3"/>
                                         <TextField fx:id="multiIterTextField" prefColumnCount="12"
-                                                   GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+                                                   GridPane.columnIndex="1" GridPane.rowIndex="3"/>
 
                                         <Label text="Prob_bound" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
                                         <TextField fx:id="probBoundTextField" prefColumnCount="12"
-                                                   GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+                                                   GridPane.columnIndex="3" GridPane.rowIndex="1"/>
 
                                         <Label text="Test_incr (advanced)" GridPane.columnIndex="2"
                                                GridPane.rowIndex="3"/>
@@ -564,7 +564,7 @@
                 <Label fx:id="statusLabel" text="Ready"/>
                 <Region HBox.hgrow="ALWAYS"/>
                 <Button fx:id="cancelButton" text="Cancel"/>
-                <Button fx:id="validateButton" text="Validate"/>
+                <Button fx:id="validateButton" text="Validate" visible="false" managed="false"/>
                 <Button fx:id="runPiclButton" defaultButton="true" text="Run PICL"/>
             </HBox>
         </VBox>

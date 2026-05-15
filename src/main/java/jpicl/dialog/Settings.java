@@ -566,13 +566,17 @@ public class Settings {
 			case Key.TREE_SEARCH -> s.treeSearchMethod = TreeSearchMethod.fromCode(Integer.parseInt(value));
 			case Key.NUM_ITER -> s.treeSearchIterations = Long.parseLong(value);
 			case Key.MULTI_ITER -> s.multiIter = Integer.parseInt(value);
-			case Key.PROB_BOUND -> s.probBound = Double.parseDouble(value);
+			case Key.PROB_BOUND -> s.probBound = enforceBounds(0.0, 1.0, Double.parseDouble(value));
 			case Key.TEST_INCR -> s.testIncr = Integer.parseInt(value);
 			case Key.OPT_SLOPE -> s.optSlope = Double.parseDouble(value);
 			case Key.BETA -> s.coolingRate = Double.parseDouble(value);
 			case Key.VERBOSE -> s.verboseOutput = parseBool01(value);
 			default -> { /* ignore unknown keys for forward compatibility */ }
 		}
+	}
+
+	public static double enforceBounds(double min, double max, double value) {
+		return Math.max(min, Math.min(max, value));
 	}
 
 	/**

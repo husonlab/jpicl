@@ -25,6 +25,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
 import jpicl.main.Version;
+import jpicl.util.TextFieldUtils;
 
 import static jpicl.util.PiclExtractor.platformKey;
 
@@ -278,7 +279,29 @@ public class DialogController {
 		logBorderPane.setCenter(logView);
 		logView.appendLine(Version.SHORT_DESCRIPTION + "\n");
 		setupToolTips();
+
+		TextFieldUtils.setDouble(thetaTextField);
+		TextFieldUtils.setDouble(gammaRateTextField);
+		TextFieldUtils.setInteger(0, Integer.MAX_VALUE, gammaCategoriesTextField);
+
+		TextFieldUtils.setInteger(0, Integer.MAX_VALUE, branchLengthIterationsTextField);
+
+		TextFieldUtils.setDouble(0, Double.MAX_VALUE, coolingRateTextField);
+
+		TextFieldUtils.setInteger(0, Integer.MAX_VALUE, treeSearchIterationsTextField);
+		TextFieldUtils.setInteger(0, Integer.MAX_VALUE, multiIterTextField);
+		TextFieldUtils.setDouble(0, 1, probBoundTextField);
+		TextFieldUtils.setDouble(testIncrTextField);
+		TextFieldUtils.setDouble(optSlopeTextField);
+
+		TextFieldUtils.setInteger(0, Integer.MAX_VALUE, bootstrapReplicatesTextField);
+		TextFieldUtils.setInteger(randomSeed1TextField);
+		TextFieldUtils.setInteger(randomSeed2TextField);
+
+		TextFieldUtils.setInteger(0, Integer.MAX_VALUE, testIncrTextField);
+		TextFieldUtils.setDouble(0, Double.MAX_VALUE, coolingRateTextField);
 	}
+
 
 	private void setupToolTips() {
 
