@@ -42,12 +42,10 @@ import javafx.stage.Window;
 import jpicl.draw.DrawPhylogram;
 import jpicl.main.SplashScreen;
 import jpicl.main.Version;
-import jpicl.updater.Updater;
-import jpicl.updater.UpdaterUI;
 import jpicl.util.*;
+import jpicl.window.UpdaterService;
 
 import java.io.*;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -205,15 +203,9 @@ public class DialogPresenter {
 		});
 		settingsTabMenuItem.setSelected(true);
 
-		// Check for Updates… — single user-driven check, no auto-poll.
-		// UpdaterUI handles all three outcomes (up-to-date / available /
-		// failed) and the download+install follow-on if applicable.
-		var updater = new Updater(Version.VERSION, URI.create(Version.UPDATE_MANIFEST_URL),
-				UpdaterUI.defaultDownloadsDirectory());
-		var updaterUI = new UpdaterUI(updater,
-				() -> controller.getMenuBar().getScene() != null
-						? controller.getMenuBar().getScene().getWindow() : null);
-		controller.getCheckForUpdatesMenuItem().setOnAction(e -> updaterUI.checkAndPrompt());
+		var updaterService = UpdaterService.get();
+		controller.getCheckForUpdatesMenuItem().setOnAction(e -> updaterService.checkForUpdates(menuBar.getScene() == null ? null : menuBar.getScene().getWindow()));
+		controller.getCheckForUpdatesMenuItem().disableProperty().bind(Bindings.size(Window.getWindows()).greaterThan(1));
 
 		controller.getAboutMenuItem().setOnAction(e -> {
 			new SplashScreen().showUntilDismissed();
@@ -911,7 +903,7 @@ public class DialogPresenter {
 		// Open the log file before any appendOutput call.
 		try {
 			logFileWriter = Files.newBufferedWriter(logPath);
-			appendOutput(Version.SHORT_DESCRIPTION +"\n");
+			appendOutput(Version.SHORT_DESCRIPTION + "\n");
 		} catch (IOException ex) {
 			logFileWriter = null;
 			controller.getStatusLabel().setText("Could not open log file: " + ex.getMessage());

@@ -1,5 +1,5 @@
 /*
- * PlatformInstaller.java Copyright (C) 2026 Daniel H. Huson
+ * UpdaterService.java Copyright (C) 2026 Daniel H. Huson
  *
  *  (Some files contain contributions from other authors, who are then mentioned separately.)
  *
@@ -18,25 +18,28 @@
  *
  */
 
-package jpicl.updater;
+package jpicl.window;
 
-public class PlatformInstaller {
-	private String installerUrl;
-	private String sha256;
+import javafx.beans.property.ReadOnlyBooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.stage.Window;
 
-	public String getInstallerUrl() {
-		return installerUrl;
+import java.util.ServiceLoader;
+
+public interface UpdaterService {
+	SimpleBooleanProperty DISABLED = new SimpleBooleanProperty(true);
+
+	default void checkForUpdates(Window owner) {
 	}
 
-	public void setInstallerUrl(String installerUrl) {
-		this.installerUrl = installerUrl;
+	default ReadOnlyBooleanProperty disabledProperty() {
+		return DISABLED;
 	}
 
-	public String getSha256() {
-		return sha256;
-	}
-
-	public void setSha256(String sha256) {
-		this.sha256 = sha256;
+	static UpdaterService get() {
+		return ServiceLoader.load(UpdaterService.class)
+				.findFirst()
+				.orElse(new UpdaterService() {
+				});
 	}
 }

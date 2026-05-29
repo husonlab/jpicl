@@ -38,24 +38,27 @@ import java.util.List;
  * order from the first input. Each output sequence is the
  * concatenation of that taxon's sequences across the inputs in input
  * order.
- *
+ * <p>
  * As a side effect, prints a one-line position range to stdout for
  * each input — the 1-based, inclusive column range that input
  * occupies in the concatenated alignment, e.g. {@code RPOA.fasta: 1-2000}.
  */
 public final class FastAMerger {
 
-	/** Output FASTA line-wrap width (characters per sequence line). */
+	/**
+	 * Output FASTA line-wrap width (characters per sequence line).
+	 */
 	public static final int LINE_WIDTH = 80;
 
-	private FastAMerger() {}
+	private FastAMerger() {
+	}
 
 	/**
 	 * Concatenates {@code inputFiles} into {@code outputFile}. Each
 	 * input is read with {@link FastaParser#parseAligned(Path)} so
 	 * within-file length mismatches surface as IOException. Across-
 	 * file taxon-set mismatches surface as IOException too.
-	 *
+	 * <p>
 	 * Prints a per-input range line to stdout.
 	 */
 	public static void merge(List<Path> inputFiles, Path outputFile) throws IOException {

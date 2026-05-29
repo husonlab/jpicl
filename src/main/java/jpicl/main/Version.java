@@ -21,7 +21,6 @@
 package jpicl.main;
 
 public class Version {
-
 	public static final String NAME = "JPICL";
 
 	/**

@@ -1,4 +1,5 @@
 module jpicl {
+	uses jpicl.window.UpdaterService;
 	requires transitive javafx.controls;
 	requires transitive javafx.graphics;
 	requires transitive javafx.fxml;
@@ -10,8 +11,4 @@ module jpicl {
 	exports jpicl.main;
 	opens jpicl.dialog to javafx.fxml;
 	opens jpicl.main to javafx.fxml;
-
-	exports jpicl.updater;
-
-
 }

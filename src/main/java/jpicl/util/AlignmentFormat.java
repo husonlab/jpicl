@@ -58,7 +58,9 @@ public enum AlignmentFormat {
 		}
 	}
 
-	/** Two whitespace-separated positive integers ⇒ Phylip header. */
+	/**
+	 * Two whitespace-separated positive integers ⇒ Phylip header.
+	 */
 	private static boolean looksLikePhylipHeader(String line) {
 		var parts = line.trim().split("\\s+");
 		if (parts.length < 2) return false;
