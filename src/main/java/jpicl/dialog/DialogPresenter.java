@@ -43,7 +43,7 @@ import jpicl.draw.DrawPhylogram;
 import jpicl.main.SplashScreen;
 import jpicl.main.Version;
 import jpicl.util.*;
-import jpicl.window.UpdaterService;
+import jpicl.window.UpdateService;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -203,7 +203,7 @@ public class DialogPresenter {
 		});
 		settingsTabMenuItem.setSelected(true);
 
-		var updaterService = UpdaterService.get();
+		var updaterService = UpdateService.get();
 		controller.getCheckForUpdatesMenuItem().setOnAction(e -> updaterService.checkForUpdates(menuBar.getScene() == null ? null : menuBar.getScene().getWindow()));
 		controller.getCheckForUpdatesMenuItem().disableProperty().bind(Bindings.size(Window.getWindows()).greaterThan(1));
 

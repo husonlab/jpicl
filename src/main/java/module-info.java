@@ -1,5 +1,7 @@
+import jpicl.window.UpdateService;
+
 module jpicl {
-	uses jpicl.window.UpdaterService;
+	uses UpdateService;
 	requires transitive javafx.controls;
 	requires transitive javafx.graphics;
 	requires transitive javafx.fxml;
