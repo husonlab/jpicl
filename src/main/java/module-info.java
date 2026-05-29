@@ -1,4 +1,4 @@
-import jpicl.window.UpdateService;
+import jpicl.main.UpdateService;
 
 module jpicl {
 	uses UpdateService;
@@ -11,6 +11,7 @@ module jpicl {
 	requires java.desktop;
 
 	exports jpicl.main;
+
 	opens jpicl.dialog to javafx.fxml;
 	opens jpicl.main to javafx.fxml;
 }

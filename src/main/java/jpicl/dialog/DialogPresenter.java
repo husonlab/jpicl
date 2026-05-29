@@ -41,9 +41,9 @@ import javafx.stage.Stage;
 import javafx.stage.Window;
 import jpicl.draw.DrawPhylogram;
 import jpicl.main.SplashScreen;
+import jpicl.main.UpdateService;
 import jpicl.main.Version;
 import jpicl.util.*;
-import jpicl.window.UpdateService;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

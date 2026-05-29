@@ -18,7 +18,7 @@
  *
  */
 
-package jpicl.window;
+package jpicl.main;
 
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
