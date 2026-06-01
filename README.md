@@ -95,7 +95,6 @@ src/main/java/jpicl/
 ├── draw/           Phylogram rendering (DrawPhylogram)
 ├── main/           App entry point + Version constants
 ├── tools/          Standalone CLI utilities (e.g. FastAMerger)
-├── updater/        In-app update check, download, install
 ├── util/           Alignment parsers, Newick I/O, output-file
 │                   bookkeeping, PICL binary extractor
 └── window/         Top-level Stage management

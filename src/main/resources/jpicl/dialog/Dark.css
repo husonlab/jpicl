@@ -89,3 +89,7 @@
     -fx-background-color: #4a6984;
     -fx-text-fill: white;
 }
+
+.tree-view-pane {
+    -fx-background-color: black;
+}

@@ -54,3 +54,7 @@
     -fx-font-size: 12px;
     -fx-padding: 1 4 1 4;
 }
+
+.tree-view-pane {
+    -fx-background-color: white;
+}

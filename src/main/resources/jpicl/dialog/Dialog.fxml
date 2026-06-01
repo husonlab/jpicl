@@ -511,7 +511,6 @@
                                                text="(no run yet)"/>
                                         <Region HBox.hgrow="ALWAYS"/>
                                         <Button fx:id="reloadTreeButton" text="Reload"/>
-                                        <Button fx:id="copyTreeButton" text="Copy"/>
                                         <Button fx:id="saveTreeAsButton" text="Save trees as…"/>
                                     </HBox>
                                     <Separator/>
@@ -530,19 +529,33 @@
                         <BorderPane>
                             <top>
                                 <VBox>
-                                    <HBox alignment="CENTER_LEFT" spacing="8.0">
-                                        <padding>
-                                            <Insets bottom="8.0" left="12.0" right="12.0" top="8.0"/>
-                                        </padding>
-                                        <Label text="File"/>
-                                        <Label fx:id="treeFilePathLabel" style="-fx-font-family: 'monospace';"
-                                               text="(no run yet)"/>
-                                    </HBox>
+                                    <AnchorPane>
+                                        <children>
+                                            <HBox alignment="CENTER_LEFT" spacing="8.0" AnchorPane.leftAnchor="0.0"
+                                                  AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                <padding>
+                                                    <Insets bottom="8.0" left="12.0" right="12.0" top="8.0"/>
+                                                </padding>
+                                                <Label text="File"/>
+                                                <Label fx:id="treeFilePathLabel" style="-fx-font-family: 'monospace';"
+                                                       text="(no run yet)"/>
+                                            </HBox>
+                                            <MenuButton fx:id="exportMenuButton" mnemonicParsing="false" text="Export"
+                                                        AnchorPane.rightAnchor="10.0" AnchorPane.topAnchor="5.0">
+                                                <items>
+                                                    <MenuItem fx:id="copyTreeMenuItem" mnemonicParsing="false"
+                                                              text="Copy Tree"/>
+                                                    <MenuItem fx:id="copyImageMenuItem" mnemonicParsing="false"
+                                                              text="Copy Image"/>
+                                                </items>
+                                            </MenuButton>
+                                        </children>
+                                    </AnchorPane>
                                     <Separator/>
                                 </VBox>
                             </top>
                             <center>
-                                <Pane fx:id="treeCanvasPane"/>
+                                <Pane fx:id="treeCanvasPane" styleClass="tree-view-pane"/>
                             </center>
                         </BorderPane>
                     </content>
@@ -564,7 +577,7 @@
                 <Label fx:id="statusLabel" text="Ready"/>
                 <Region HBox.hgrow="ALWAYS"/>
                 <Button fx:id="cancelButton" text="Cancel"/>
-                <Button fx:id="validateButton" text="Validate" visible="false" managed="false"/>
+                <Button fx:id="validateButton" managed="false" text="Validate" visible="false"/>
                 <Button fx:id="runPiclButton" defaultButton="true" text="Run PICL"/>
             </HBox>
         </VBox>

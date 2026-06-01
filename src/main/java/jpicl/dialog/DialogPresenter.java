@@ -30,6 +30,7 @@ import javafx.event.ActionEvent;
 import javafx.print.PrinterJob;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.ChoiceBoxTableCell;
 import javafx.scene.control.cell.TextFieldTableCell;
@@ -212,6 +213,18 @@ public class DialogPresenter {
 		});
 
 		controller.getOpenGitHubMenuItem().setOnAction(e -> WebBrowser.openURL(Version.GITHUB_PAGE));
+
+		controller.getCopyImageMenuItem().setOnAction(e -> {
+			var params = new SnapshotParameters();
+			var image = controller.getTreeCanvasPane().snapshot(params, null);
+			var content = new ClipboardContent();
+			content.putImage(image);
+			Clipboard.getSystemClipboard().setContent(content);
+		});
+		controller.getCopyImageMenuItem().disableProperty().bind(controller.getOutputTextArea().textProperty().isEmpty());
+
+		controller.getCopyTreeMenuItem().setOnAction(this::onCopyTree);
+		controller.getCopyTreeMenuItem().disableProperty().bind(controller.getOutputTextArea().textProperty().isEmpty());
 	}
 
 	/**
@@ -396,8 +409,6 @@ public class DialogPresenter {
 		controller.getRunStatusLabel().setText("Idle");
 
 		// Tree-tab buttons disabled until a tree is loaded.
-		controller.getCopyTreeButton().disableProperty().bind(
-				controller.getOutputTextArea().textProperty().isEmpty());
 		controller.getSaveTreeAsButton().disableProperty().bind(
 				controller.getOutputTextArea().textProperty().isEmpty());
 	}
@@ -555,7 +566,6 @@ public class DialogPresenter {
 		controller.getStopRunButton().setOnAction(this::onStopRun);
 
 		controller.getReloadTreeButton().setOnAction(this::onReloadTree);
-		controller.getCopyTreeButton().setOnAction(this::onCopyTree);
 		controller.getSaveTreeAsButton().setOnAction(this::onSaveTreeAs);
 	}
 
@@ -830,8 +840,7 @@ public class DialogPresenter {
 					// labels for .trees / .log / .bootstrap auto-update
 					// via their existing text-property listeners).
 					controller.getOutTreeFileTextField().setText(bumped.outTree().toString());
-					controller.getStatusLabel().setText(
-							"Output exists; writing to " + bumped.outTree().getFileName());
+					controller.getStatusLabel().setText("Output exists; writing to " + bumped.outTree().getFileName());
 				}
 				case REPLACE -> {
 					try {
@@ -1123,6 +1132,18 @@ public class DialogPresenter {
 		}
 	}
 
+	public String getTreeFromFile(Path treeFile) {
+		try {
+			var content = Files.readString(treeFile).trim();
+			var semi = content.indexOf(';');
+			return (semi >= 0) ? content.substring(0, semi + 1) : content;
+		} catch (IOException ignored) {
+			return "";
+		}
+
+	}
+
+
 	private void onStopRun(ActionEvent e) {
 		var p = currentProcess;
 		if (p == null || !p.isAlive()) return;
@@ -1161,10 +1182,13 @@ public class DialogPresenter {
 	}
 
 	private void onCopyTree(ActionEvent e) {
-		var content = new ClipboardContent();
-		content.putString(controller.getOutputTextArea().getText());
-		Clipboard.getSystemClipboard().setContent(content);
-		controller.getStatusLabel().setText("Tree copied to clipboard");
+		var newick = getTreeFromFile(pendingOutTreePath);
+		if (!newick.isBlank()) {
+			var content = new ClipboardContent();
+			content.putString(newick);
+			Clipboard.getSystemClipboard().setContent(content);
+			controller.getStatusLabel().setText("Tree copied to clipboard");
+		}
 	}
 
 	private void onSaveTreeAs(ActionEvent e) {
@@ -1177,7 +1201,7 @@ public class DialogPresenter {
 		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All files", "*"));
 		if (lastTreeFile != null && lastTreeFile.getParent() != null) {
 			chooser.setInitialDirectory(lastTreeFile.getParent().toFile());
-			chooser.setInitialFileName(lastTreeFile.getFileName().toString());
+			chooser.setInitialFileName(lastTreeFile.toFile().getName());
 		} else {
 			chooser.setInitialFileName("output.trees");
 		}

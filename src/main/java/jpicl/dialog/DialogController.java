@@ -24,6 +24,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
+import javafx.scene.shape.SVGPath;
 import jpicl.main.Version;
 import jpicl.util.TextFieldUtils;
 
@@ -203,8 +204,8 @@ public class DialogController {
 	private Label treesFilePathLabel;
 	@FXML
 	private Button reloadTreeButton;
-	@FXML
-	private Button copyTreeButton;
+
+
 	@FXML
 	private Button saveTreeAsButton;
 	@FXML
@@ -268,6 +269,15 @@ public class DialogController {
 	@FXML
 	private MenuItem openGitHubMenuItem;
 
+	@FXML
+	private MenuButton exportMenuButton;
+
+	@FXML
+	private MenuItem copyTreeMenuItem;
+
+	@FXML
+	private MenuItem copyImageMenuItem;
+
 	private final LogView logView = new LogView();
 
 	@FXML
@@ -300,6 +310,14 @@ public class DialogController {
 
 		TextFieldUtils.setInteger(0, Integer.MAX_VALUE, testIncrTextField);
 		TextFieldUtils.setDouble(0, Double.MAX_VALUE, coolingRateTextField);
+
+		var svg = new SVGPath();
+		svg.setContent("M5 20h14v-2H5v2zm7-18l-5.5 5.5 1.42 1.42L11 5.84V16h2V5.84l3.08 3.08 1.42-1.42L12 2z");
+		svg.setScaleY(0.8);
+		svg.setScaleX(0.6);
+		svg.setScaleY(0.6);
+		exportMenuButton.setGraphic(svg);
+		exportMenuButton.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
 	}
 
 
@@ -769,10 +787,6 @@ public class DialogController {
 		return reloadTreeButton;
 	}
 
-	public Button getCopyTreeButton() {
-		return copyTreeButton;
-	}
-
 	public Button getSaveTreeAsButton() {
 		return saveTreeAsButton;
 	}
@@ -891,5 +905,13 @@ public class DialogController {
 
 	public MenuItem getOpenGitHubMenuItem() {
 		return openGitHubMenuItem;
+	}
+
+	public MenuItem getCopyTreeMenuItem() {
+		return copyTreeMenuItem;
+	}
+
+	public MenuItem getCopyImageMenuItem() {
+		return copyImageMenuItem;
 	}
 }
