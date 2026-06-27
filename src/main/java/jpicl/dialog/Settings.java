@@ -32,13 +32,16 @@ public class Settings {
 	// =================================================================
 
 	/**
-	 * Substitution / coalescent model. PICL codes 1 = CIS, 2 = CIS+gamma.
+	 * Substitution / coalescent model. PICL codes 1 = CIS, 2 = CIS+gamma,
+	 * 3 = SNP, 4 = JC69 for gene trees, 5 = CIS/multilocus (MSC-JC69) with
+	 * variable population size (Dhruv's model; theta is ignored, lambda is used).
 	 */
 	public enum Model {
 		CIS(1, "Multilocus / CIS"),
 		CIS_GAMMA(2, "Multilocus / CIS with gamma"),
 		SNP(3, "SNP data"),
-		JC69(4, "model for gene trees");
+		JC69(4, "model for gene trees"),
+		CIS_VARPOP(5, "Multilocus / CIS, variable population size (MSC-JC69)");
 
 		private final int code;
 		private final String displayName;
@@ -205,6 +208,7 @@ public class Settings {
 	private String alignmentFile = "";
 	private boolean includeAllSites = true;
 	private double theta = 0.002;
+	private double lambda = 300.0;   // population-size param; required for Model 5 (MSC-JC69, variable Nₑ)
 	private double gammaRate = 1.0;
 	private int gammaCategories = 4;
 
@@ -270,6 +274,14 @@ public class Settings {
 
 	public void setTheta(double v) {
 		this.theta = v;
+	}
+
+	public double getLambda() {
+		return lambda;
+	}
+
+	public void setLambda(double v) {
+		this.lambda = v;
 	}
 
 	public double getGammaRate() {
@@ -433,6 +445,7 @@ public class Settings {
 	//      Gaps: <0|1>
 	//      Bootstrap: <int>
 	//      Theta: <double>
+	//      Lambda: <double>            population-size param (Model 5; MSC-JC69)
 	//      Rate_param: <double>
 	//      Random_tree: <0|1>          1 = generate, 0 = read from file
 	//      Opt_bl: <int>               branch-length method code
@@ -462,6 +475,7 @@ public class Settings {
 		public static final String GAPS = "Gaps";          // 1 = include all sites
 		public static final String BOOTSTRAP = "Bootstrap";
 		public static final String THETA = "Theta";
+		public static final String LAMBDA = "Lambda";        // population-size param (Model 5)
 		public static final String RATE_PARAM = "Rate_param";    // gamma rate
 		public static final String RANDOM_TREE = "Random_tree";   // 1 = generate, 0 = read
 		public static final String OPT_BL = "Opt_bl";        // branch-length method code
@@ -484,12 +498,83 @@ public class Settings {
 	}
 
 	/**
-	 * Reads a PICL settings file and returns a populated Settings instance.
+	 * All header keys this version understands, in canonical order. Used to
+	 * detect settings files saved by an older PICL version (one or more keys
+	 * absent) so the user can be told the file is outdated rather than having
+	 * the missing values silently filled with defaults.
+	 */
+	private static final List<String> KNOWN_KEYS = List.of(
+			Key.MODEL, Key.GAPS, Key.BOOTSTRAP, Key.THETA, Key.LAMBDA, Key.RATE_PARAM,
+			Key.RANDOM_TREE, Key.OPT_BL, Key.USER_BL, Key.NUM_OPT, Key.SEED1, Key.SEED2,
+			Key.NUM_CAT, Key.TREE_SEARCH, Key.NUM_ITER, Key.MULTI_ITER, Key.PROB_BOUND,
+			Key.TEST_INCR, Key.OPT_SLOPE, Key.BETA, Key.VERBOSE);
+
+	/**
+	 * Outcome of {@link #load(Path)}: the parsed settings plus any human-readable
+	 * warnings. {@code usable} is false only when the file had no recognisable
+	 * PICL content at all.
+	 */
+	public static final class LoadResult {
+		private final Settings settings;
+		private final List<String> warnings;
+		private final boolean usable;
+
+		LoadResult(Settings settings, List<String> warnings, boolean usable) {
+			this.settings = settings;
+			this.warnings = warnings;
+			this.usable = usable;
+		}
+
+		public Settings settings() {
+			return settings;
+		}
+
+		public List<String> warnings() {
+			return warnings;
+		}
+
+		public boolean isUsable() {
+			return usable;
+		}
+
+		public boolean hasWarnings() {
+			return !warnings.isEmpty();
+		}
+	}
+
+	/**
+	 * Backward-compatible reader: returns just the settings and discards any
+	 * warnings. Prefer {@link #load(Path)} in UI code so version/format
+	 * problems can be reported to the user.
 	 */
 	public static Settings read(Path path) throws IOException {
+		return load(path).settings();
+	}
+
+	/**
+	 * Best-effort, version-tolerant reader.
+	 * <p>
+	 * A settings file is a convenience and every field has a sane default, so we
+	 * never discard the whole file because one line is stale or malformed.
+	 * Instead we apply everything we understand and collect human-readable
+	 * {@code warnings} for anything we cannot:
+	 * <ul>
+	 *   <li><b>Missing known keys</b> &rarr; file predates this version; defaults
+	 *       applied (e.g. an old file with no {@code Lambda}).</li>
+	 *   <li><b>Unrecognised keys</b> &rarr; possibly from a newer version; ignored.</li>
+	 *   <li><b>Unparseable values / unknown codes</b> &rarr; default kept.</li>
+	 *   <li><b>Structural problems</b> (species count, lineage lines) &rarr; skipped.</li>
+	 * </ul>
+	 * Only a genuine I/O failure throws. Callers should display
+	 * {@link LoadResult#warnings()} whenever {@link LoadResult#hasWarnings()}.
+	 */
+	public static LoadResult load(Path path) throws IOException {
 		var settings = new Settings();
-		var lines = Files.readAllLines(path);
+		var warnings = new ArrayList<String>();
+		var seenKeys = new LinkedHashSet<String>();
+		var lines = Files.readAllLines(path);   // genuine I/O errors propagate to the caller
 		int i = 0;
+		int applied = 0;
 
 		// ----- header section: "Key: value" lines -----
 		while (i < lines.size()) {
@@ -502,35 +587,57 @@ public class Settings {
 			if (colon < 0) break;                       // first non-key line: species count
 			var key = line.substring(0, colon).trim();
 			var val = line.substring(colon + 1).trim();
-			applyHeaderEntry(settings, key, val);
+			seenKeys.add(key);
+			try {
+				if (applyHeaderEntry(settings, key, val)) {
+					applied++;
+				} else {
+					warnings.add("Unrecognised setting “" + key
+								 + "” was ignored (it may come from a newer PICL version).");
+				}
+			} catch (RuntimeException badValue) {
+				warnings.add("Setting “" + key + ": " + val + "” could not be read ("
+							 + shortReason(badValue) + "); the default was kept.");
+			}
 			i++;
+		}
+
+		// ----- older-version detection: known keys that never appeared -----
+		if (applied > 0) {
+			var missing = new ArrayList<String>();
+			for (var k : KNOWN_KEYS) if (!seenKeys.contains(k)) missing.add(k);
+			if (!missing.isEmpty())
+				warnings.add("This file does not contain: " + String.join(", ", missing)
+							 + ". It looks like it was saved by an older PICL version, so defaults "
+							 + "were used for the missing value(s).");
 		}
 
 		// ----- species count -----
 		while (i < lines.size() && lines.get(i).trim().isEmpty()) i++;
 		if (i >= lines.size()) {
-			if (true) {
-				System.err.println("Settings file ended before species count");
-				return settings;
-			} else
-				throw new IOException("Settings file ended before species count");
+			warnings.add("No species section was found; only the header settings were loaded.");
+			return new LoadResult(settings, warnings, applied > 0);
 		}
-		int speciesCount = Integer.parseInt(lines.get(i).trim());
-		i++;
+		int speciesCount;
+		try {
+			speciesCount = Integer.parseInt(lines.get(i).trim());
+			i++;
+		} catch (NumberFormatException nfe) {
+			warnings.add("Expected a species count but found “" + lines.get(i).trim()
+						 + "”; species and lineages were skipped.");
+			return new LoadResult(settings, warnings, applied > 0);
+		}
 
 		// ----- species names (space-separated, on one line) -----
 		while (i < lines.size() && lines.get(i).trim().isEmpty()) i++;
 		if (i >= lines.size()) {
-			if (true) {
-				System.err.println("Settings file ended before species list");
-				return settings;
-			} else
-				throw new IOException("Settings file ended before species list");
-
+			warnings.add("The species list is missing after its count; only the header was loaded.");
+			return new LoadResult(settings, warnings, applied > 0);
 		}
 		var names = lines.get(i).trim().split("\\s+");
 		if (names.length != speciesCount)
-			throw new IOException("Species count " + speciesCount + " does not match number of names (" + names.length + ")");
+			warnings.add("The species count (" + speciesCount + ") does not match the "
+						 + names.length + " name(s) listed; the listed names were used.");
 		settings.species.setAll(Arrays.asList(names));
 		i++;
 
@@ -541,18 +648,31 @@ public class Settings {
 			i++;
 			if (line.isEmpty()) continue;
 			var parts = line.split("\\s+", 2);
-			if (parts.length < 2) continue;
+			if (parts.length < 2) {
+				warnings.add("Ignored a malformed lineage line: “" + line + "”.");
+				continue;
+			}
 			settings.lineageAssignments.add(new LineageAssignment(idx++, parts[1], parts[0]));
 		}
-		return settings;
+		return new LoadResult(settings, warnings, applied > 0);
 	}
 
-	private static void applyHeaderEntry(Settings s, String key, String value) {
+	private static String shortReason(RuntimeException e) {
+		if (e instanceof NumberFormatException) return "not a number";
+		var m = e.getMessage();
+		return (m == null || m.isBlank()) ? e.getClass().getSimpleName() : m;
+	}
+
+	/**
+	 * Applies one header entry; returns true if the key was recognised.
+	 */
+	private static boolean applyHeaderEntry(Settings s, String key, String value) {
 		switch (key) {
 			case Key.MODEL -> s.model = Model.fromCode(Integer.parseInt(value));
 			case Key.GAPS -> s.includeAllSites = parseBool01(value);
 			case Key.BOOTSTRAP -> s.bootstrapReplicates = Integer.parseInt(value);
 			case Key.THETA -> s.theta = Double.parseDouble(value);
+			case Key.LAMBDA -> s.lambda = Double.parseDouble(value);
 			case Key.RATE_PARAM -> s.gammaRate = Double.parseDouble(value);
 			case Key.RANDOM_TREE -> s.startingTreeSource = parseBool01(value)
 					? StartingTreeSource.GENERATE_RANDOM
@@ -571,8 +691,11 @@ public class Settings {
 			case Key.OPT_SLOPE -> s.optSlope = Double.parseDouble(value);
 			case Key.BETA -> s.coolingRate = Double.parseDouble(value);
 			case Key.VERBOSE -> s.verboseOutput = parseBool01(value);
-			default -> { /* ignore unknown keys for forward compatibility */ }
+			default -> {
+				return false;   // unknown key — caller records a warning
+			}
 		}
+		return true;
 	}
 
 	public static double enforceBounds(double min, double max, double value) {
@@ -597,6 +720,7 @@ public class Settings {
 		kv(w, Key.GAPS, bool01(includeAllSites));
 		kv(w, Key.BOOTSTRAP, Integer.toString(bootstrapReplicates));
 		kv(w, Key.THETA, Double.toString(theta));
+		kv(w, Key.LAMBDA, Double.toString(lambda));   // MUST follow Theta — PICL reads it positionally right after Theta
 		kv(w, Key.RATE_PARAM, Double.toString(gammaRate));
 		kv(w, Key.RANDOM_TREE, bool01(startingTreeSource == StartingTreeSource.GENERATE_RANDOM));
 		kv(w, Key.OPT_BL, Integer.toString(branchLengthMethod.code()));
@@ -678,7 +802,9 @@ public class Settings {
 		var problems = new java.util.ArrayList<String>();
 		if (alignmentFile == null || alignmentFile.isBlank())
 			problems.add("Alignment file is empty.");
-		if (theta <= 0) problems.add("θ must be > 0.");
+		if (model != Model.CIS_VARPOP && theta <= 0) problems.add("θ must be > 0.");
+		if (model == Model.CIS_VARPOP && !(lambda > 0))
+			problems.add("λ must be > 0 for the variable-population-size model (Model 5).");
 		if (gammaCategories < 1) problems.add("Gamma categories must be ≥ 1.");
 		if (branchLengthIterations < 1) problems.add("Branch-length iterations must be ≥ 1.");
 		if (treeSearchIterations < 1) problems.add("Tree-search iterations must be ≥ 1.");

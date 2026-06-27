@@ -226,6 +226,14 @@
                                             <Label fx:id="thetaHintLabel" text="fixed"/>
                                         </HBox>
 
+                                        <!-- Row 2 (left): Lambda — population-size param for Model 5 -->
+                                        <Label text="λ (variable Nₑ)" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                                        <HBox alignment="CENTER_LEFT" spacing="6.0" GridPane.columnIndex="1"
+                                              GridPane.rowIndex="2">
+                                            <TextField fx:id="lambdaTextField" prefColumnCount="10"/>
+                                            <Label fx:id="lambdaHintLabel" text="used when model = 5"/>
+                                        </HBox>
+
                                         <!-- Row 1: Sites + Gamma rate -->
                                         <Label text="Sites" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
                                         <CheckBox fx:id="includeAllSitesCheckBox" text="Include gap-containing sites"

@@ -132,6 +132,10 @@ public class DialogController {
 	@FXML
 	private TextField thetaTextField;
 	@FXML
+	private Label lambdaHintLabel;
+	@FXML
+	private TextField lambdaTextField;
+	@FXML
 	private Button treeFileBrowseButton;
 	@FXML
 	private TextField treeFileTextField;
@@ -291,6 +295,7 @@ public class DialogController {
 		setupToolTips();
 
 		TextFieldUtils.setDouble(thetaTextField);
+		TextFieldUtils.setDouble(0, Double.MAX_VALUE, lambdaTextField);
 		TextFieldUtils.setDouble(gammaRateTextField);
 		TextFieldUtils.setInteger(0, Integer.MAX_VALUE, gammaCategoriesTextField);
 
@@ -329,6 +334,7 @@ public class DialogController {
 				2 = multilocus or CIS data with discrete gamma-distributed rate variation
 				3 = SNP data
 				4 = JC69 model for gene trees (composite likelihood under the JC69 model without the multispecies coalescent)
+				5 = CIS/multilocus (MSC-JC69) with variable population size; set Lambda (Theta is ignored)
 				"""));
 
 		includeAllSitesCheckBox.setTooltip(new Tooltip("""
@@ -348,6 +354,13 @@ public class DialogController {
 				Theta:
 				Effective population size parameter (4Nₑμ).
 				Currently this must be provided by the user as a fixed value.
+				Ignored when Model = 5 (set Lambda instead).
+				"""));
+
+		lambdaTextField.setTooltip(new Tooltip("""
+				Lambda:
+				Population-size parameter for the CIS/multilocus model (MSC-JC69)
+				with variable population size (Model 5). A reasonable default is 300.
 				"""));
 
 		gammaRateTextField.setTooltip(new Tooltip("""
@@ -649,6 +662,14 @@ public class DialogController {
 
 	public TextField getThetaTextField() {
 		return thetaTextField;
+	}
+
+	public Label getLambdaHintLabel() {
+		return lambdaHintLabel;
+	}
+
+	public TextField getLambdaTextField() {
+		return lambdaTextField;
 	}
 
 	public Button getTreeFileBrowseButton() {

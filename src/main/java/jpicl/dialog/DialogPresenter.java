@@ -53,7 +53,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.Random;
-import java.util.function.Consumer;
 
 /**
  * All UI wiring, event handlers, and run-time state for the PICL
@@ -168,12 +167,12 @@ public class DialogPresenter {
 		// Forward to the focused TextInputControl. JavaFX text fields
 		// already handle the keyboard shortcuts natively; the menu items
 		// give the user a discoverable, click-driven path.
-		controller.getUndoMenuItem().setOnAction(e -> onFocusedText(TextInputControl::undo));
-		controller.getRedoMenuItem().setOnAction(e -> onFocusedText(TextInputControl::redo));
-		controller.getCutMenuItem().setOnAction(e -> onFocusedText(TextInputControl::cut));
-		controller.getCopyMenuItem().setOnAction(e -> onFocusedText(TextInputControl::copy));
-		controller.getPasteMenuItem().setOnAction(e -> onFocusedText(TextInputControl::paste));
-		controller.getDeleteMenuItem().setOnAction(e -> onFocusedText(TextInputControl::deleteNextChar));
+		controller.getUndoMenuItem().setOnAction(e -> textControlHandled(controller.getMenuBar()));
+		controller.getRedoMenuItem().setOnAction(e -> textControlHandled(controller.getMenuBar()));
+		controller.getCutMenuItem().setOnAction(e -> textControlHandled(controller.getMenuBar()));
+		controller.getCopyMenuItem().setOnAction(e -> textControlHandled(controller.getMenuBar()));
+		controller.getPasteMenuItem().setOnAction(e -> textControlHandled(controller.getMenuBar()));
+		controller.getDeleteMenuItem().setOnAction(e -> textControlHandled(controller.getMenuBar()));
 
 		// ----- View -----
 		// Full screen and Dark mode hooks need a Scene, which isn't
@@ -297,11 +296,9 @@ public class DialogPresenter {
 		}
 	}
 
-	private void onFocusedText(Consumer<TextInputControl> action) {
-		var scene = controller.getMenuBar().getScene();
-		if (scene == null) return;
-		Node owner = scene.getFocusOwner();
-		if (owner instanceof TextInputControl tic) action.accept(tic);
+	private static boolean textControlHandled(Node node) {
+		var scene = node.getScene();
+		return scene != null && scene.getFocusOwner() instanceof TextInputControl;
 	}
 
 	private void onNew() {
@@ -488,6 +485,14 @@ public class DialogPresenter {
 		controller.getGammaCategoriesTextField().disableProperty().bind(notGamma);
 		controller.getGammaCategoriesHintLabel().disableProperty().bind(notGamma);
 
+		// Lambda (population size) is used only by Model 5; Theta is ignored there.
+		var isVarPop = controller.getModelChoiceBox().valueProperty()
+				.isEqualTo(Settings.Model.CIS_VARPOP);
+		controller.getLambdaTextField().disableProperty().bind(isVarPop.not());
+		controller.getLambdaHintLabel().disableProperty().bind(isVarPop.not());
+		controller.getThetaTextField().disableProperty().bind(isVarPop);
+		controller.getThetaHintLabel().disableProperty().bind(isVarPop);
+
 		// Tree-file row is only meaningful when reading from a tree file.
 		var notFromFile = controller.getReadFromTreeFileRadioButton().selectedProperty().not();
 		controller.getTreeFileTextField().disableProperty().bind(notFromFile);
@@ -579,6 +584,7 @@ public class DialogPresenter {
 			controller.getAlignmentFileTextField().setText(s.getAlignmentFile());
 		controller.getIncludeAllSitesCheckBox().setSelected(s.isIncludeAllSites());
 		controller.getThetaTextField().setText(Double.toString(s.getTheta()));
+		controller.getLambdaTextField().setText(Double.toString(s.getLambda()));
 		controller.getGammaRateTextField().setText(Double.toString(s.getGammaRate()));
 		controller.getGammaCategoriesTextField().setText(Integer.toString(s.getGammaCategories()));
 
@@ -618,6 +624,7 @@ public class DialogPresenter {
 		s.setAlignmentFile(controller.getAlignmentFileTextField().getText());
 		s.setIncludeAllSites(controller.getIncludeAllSitesCheckBox().isSelected());
 		s.setTheta(parseDouble(controller.getThetaTextField(), s.getTheta()));
+		s.setLambda(parseDouble(controller.getLambdaTextField(), s.getLambda()));
 		s.setGammaRate(parseDouble(controller.getGammaRateTextField(), s.getGammaRate()));
 		s.setGammaCategories(parseInt(controller.getGammaCategoriesTextField(), s.getGammaCategories()));
 
@@ -662,7 +669,16 @@ public class DialogPresenter {
 		var file = chooser.showOpenDialog(window());
 		if (file == null) return;
 		try {
-			var loaded = Settings.read(file.toPath());
+			var result = Settings.load(file.toPath());
+			if (!result.isUsable()) {
+				var a = new Alert(Alert.AlertType.ERROR,
+						"“" + file.getName() + "” does not look like a PICL settings file, "
+						+ "so nothing was loaded.", ButtonType.OK);
+				a.setHeaderText("Unrecognised settings file");
+				a.showAndWait();
+				return;
+			}
+			var loaded = result.settings();
 			applyToUi(loaded);
 			pullFromUi(this.settings);
 			settings.getSpecies().setAll(loaded.getSpecies());
@@ -671,6 +687,18 @@ public class DialogPresenter {
 			controller.getStatusLabel().setText("Loaded " + file.getName()
 												+ " · " + loaded.getSpecies().size() + " species, "
 												+ loaded.getLineageAssignments().size() + " lineages");
+			if (result.hasWarnings()) {
+				var sb = new StringBuilder();
+				sb.append("“").append(file.getName()).append("” was loaded, but some entries "
+															 + "needed attention. This usually means the file is from a different PICL "
+															 + "version or was hand-edited:\n\n");
+				for (var warn : result.warnings()) sb.append("• ").append(warn).append('\n');
+				sb.append("\nReview the values, then Save to rewrite the file in the current format.");
+				var a = new Alert(Alert.AlertType.WARNING, sb.toString(), ButtonType.OK);
+				a.setHeaderText("Settings loaded with warnings");
+				a.getDialogPane().setPrefWidth(560);
+				a.showAndWait();
+			}
 		} catch (Exception ex) {
 			error("Could not load settings", ex);
 		}
