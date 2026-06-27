@@ -11,7 +11,7 @@ case "$(uname -s)-$(uname -m)" in
     *) echo "Unknown platform: $(uname -s)-$(uname -m)" >&2; exit 1 ;;
 esac
 
-DEST_DIR="$SCRIPT_DIR/../packaging/native/$PLATFORM_KEY"
+DEST_DIR="$SCRIPT_DIR/.."
 mkdir -p "$DEST_DIR"
 
 cd "$SCRIPT_DIR/../native/picl/src"
