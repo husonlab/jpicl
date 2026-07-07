@@ -1,4 +1,4 @@
-Model: 5
+Model: 1
 Gaps: 1
 Bootstrap: 0
 Theta: 0.002
@@ -7,12 +7,12 @@ Rate_param: 1.0
 Random_tree: 1
 Opt_bl: 1
 User_bl: 1
-Num_opt: 100000
+Num_opt: 1000000
 Seed1: 12345
 Seed2: 67890
 Num_cat: 4
 Tree_search: 2
-Num_iter: 30
+Num_iter: 300
 Multi_iter: 3
 Prob_bound: 0.05
 Test_incr: 250

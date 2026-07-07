@@ -51,6 +51,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.Random;
 
@@ -111,6 +112,27 @@ public class DialogPresenter {
 	 * Output tree (.tre) path written by picl in the most recent run; null if no run yet.
 	 */
 	private Path pendingOutTreePath;
+
+	/**
+	 * Per-run temporary directory in which the native PICL executable is run.
+	 * PICL sees only simple local filenames inside this directory.
+	 */
+	private Path pendingWorkDir;
+
+	/**
+	 * PICL output paths inside {@link #pendingWorkDir}; copied to the
+	 * user-visible output paths after a successful run.
+	 */
+	private Path pendingWorkTreeInfoPath;
+	private Path pendingWorkOutTreePath;
+	private Path pendingWorkValuesPath;
+	private Path pendingWorkBootstrapPath;
+
+	/**
+	 * User-visible secondary output files written by PICL in the most recent run.
+	 */
+	private Path pendingValuesPath;
+	private Path pendingBootstrapPath;
 
 	/**
 	 * Last successfully parsed tree root, retained so we can redraw on resize.
@@ -711,9 +733,9 @@ public class DialogPresenter {
 				new FileChooser.ExtensionFilter("PICL settings", "*.txt", "*.cfg", "*.settings"));
 		if (lastSettingsFile != null) {
 			chooser.setInitialDirectory(lastSettingsFile.getParentFile());
-			chooser.setInitialFileName(lastSettingsFile.getName());
+			chooser.setInitialFileName(lastSettingsFile.getName().replaceFirst("(?<!^)\\.[^.]*$", ""));
 		} else {
-			chooser.setInitialFileName("picl.settings");
+			chooser.setInitialFileName("picl");
 		}
 		var file = chooser.showSaveDialog(window());
 		if (file == null) return;
@@ -753,7 +775,7 @@ public class DialogPresenter {
 			var f = new File(current);
 			if (f.getParentFile() != null && f.getParentFile().isDirectory())
 				chooser.setInitialDirectory(f.getParentFile());
-			chooser.setInitialFileName(f.getName());
+			chooser.setInitialFileName(f.getName().replaceFirst("(?<!^)\\.[^.]*$", ""));
 		}
 		var file = chooser.showSaveDialog(window());
 		if (file != null) target.setText(file.getAbsolutePath());
@@ -894,20 +916,42 @@ public class DialogPresenter {
 		var logPath = bumped.log();
 		var bootstrapPath = bumped.bootstrap();
 
-		// Format detection. PICL accepts relaxed Phylip with long names,
-		// so FASTA inputs just get re-rendered to Phylip (in the system
-		// temp dir) without any name remapping. Phylip inputs pass through.
-		Path piclAlignmentPath;
+		// Create a local per-run work directory. The native PICL program is
+		// intentionally run from here with argv entries such as data.phy and
+		// treefile.tre, not with absolute paths or UNC paths. This avoids a
+		// class of Windows crashes in older C code that assumes simple local
+		// filenames.
+		Path workDir;
 		try {
-			piclAlignmentPath = prepareAlignmentForPicl(alignmentPath);
+			workDir = Files.createTempDirectory("jpicl-run-");
 		} catch (IOException ex) {
-			error("Could not read alignment", ex);
+			error("Could not create temporary PICL work directory", ex);
+			return;
+		}
+
+		var workSettingsPath = workDir.resolve("data.settings");
+		var workAlignmentPath = workDir.resolve("data.phy");
+		var workTreeFilePath = workDir.resolve("treefile.tre");
+		var workTreesPath = workDir.resolve("data.trees");
+		var workOutTreePath = workDir.resolve("data.tre");
+		var workValuesPath = workDir.resolve("data.values");
+		var workBootstrapPath = workDir.resolve("data.bootstrap");
+
+		// Format detection. PICL accepts relaxed Phylip with long names,
+		// so FASTA inputs get re-rendered to Phylip in the local work
+		// directory. Phylip inputs are copied there unchanged.
+		try {
+			prepareAlignmentForPicl(alignmentPath, workAlignmentPath);
+		} catch (IOException ex) {
+			error("Could not prepare alignment for PICL", ex);
+			deleteDirectoryQuietly(workDir);
 			return;
 		}
 
 		// Starting tree file path — only consulted by PICL when
 		// Random_tree=0. Use the user's value if set, else a sibling
-		// of the alignment as a fallback.
+		// of the alignment as a fallback. If the file exists, copy it to
+		// the simple local name treefile.tre.
 		var treeFileText = controller.getTreeFileTextField().getText().trim();
 		Path treeFilePath;
 		if (treeFileText.isBlank()) {
@@ -918,26 +962,32 @@ public class DialogPresenter {
 					? tfp
 					: alignmentPath.resolveSibling(tfp).toAbsolutePath();
 		}
-
-		// Write the settings file once — it's both the user-visible
-		// output artifact and PICL's argv[1], using identical contents.
 		try {
-			settings.write(settingsPath);
+			if (Files.isReadable(treeFilePath)) {
+				Files.copy(treeFilePath, workTreeFilePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+			}
 		} catch (IOException ex) {
-			error("Could not write settings file", ex);
+			error("Could not copy starting tree file", ex);
+			deleteDirectoryQuietly(workDir);
 			return;
 		}
 
-		// Run picl with cwd = the alignment's directory.
-		var workDir = alignmentPath.getParent() != null
-				? alignmentPath.getParent().toFile()
-				: new File(System.getProperty("user.dir"));
+		// Write the settings file twice: once as the user-visible output
+		// artifact, and once under a simple local filename for PICL.
+		try {
+			settings.write(settingsPath);
+			settings.write(workSettingsPath);
+		} catch (IOException ex) {
+			error("Could not write settings file", ex);
+			deleteDirectoryQuietly(workDir);
+			return;
+		}
 
 		// Switch the user to the Log tab and clear previous output.
 		controller.getMainTabPane().getSelectionModel().select(controller.getLogTab());
 		controller.getLogView().clear();
 
-		// Open the log file before any appendOutput call.
+		// Open the user-visible log file before any appendOutput call.
 		try {
 			logFileWriter = Files.newBufferedWriter(logPath);
 			appendOutput(Version.SHORT_DESCRIPTION + "\n");
@@ -947,38 +997,51 @@ public class DialogPresenter {
 		}
 
 		if (settings.isVerboseOutput()) {
+			appendOutput("Working directory: " + workDir + "\n");
 			appendOutput("$ " + execPath
-						 + " " + settingsPath
-						 + " " + piclAlignmentPath
-						 + " " + treeFilePath
-						 + " " + treesPath
-						 + " " + picltreesPath
-						 + " " + valuesPath
-						 + " " + bootstrapPath + "\n");
-			if (!piclAlignmentPath.equals(alignmentPath)) {
-				appendOutput("(FASTA input detected; converted to Phylip at " + piclAlignmentPath + ")\n");
-			}
+						 + " " + workSettingsPath.getFileName()
+						 + " " + workAlignmentPath.getFileName()
+						 + " " + workTreeFilePath.getFileName()
+						 + " " + workTreesPath.getFileName()
+						 + " " + workOutTreePath.getFileName()
+						 + " " + workValuesPath.getFileName()
+						 + " " + workBootstrapPath.getFileName() + "\n");
 		}
 
 		// argv layout:
-		//   argv[1] = settings
-		//   argv[2] = data.phy (alignment — the converted temp Phylip if input was FASTA)
-		//   argv[3] = treefile.tre (input starting tree, if Random_tree=0)
-		//   argv[4] = outtree.tre (renamed to <output>.trees)
-		//   argv[5] = picltrees.tre (the user's Output tree — Newick only)
-		//   argv[6] = values
-		//   argv[7] = bootstrap
-		var pb = new ProcessBuilder(execPath.toString(), settingsPath.toString(), piclAlignmentPath.toString(),
-				treeFilePath.toString(), treesPath.toString(), picltreesPath.toString(), valuesPath.toString(), bootstrapPath.toString())
-				.directory(workDir)
+		//   argv[1] = data.settings
+		//   argv[2] = data.phy
+		//   argv[3] = treefile.tre
+		//   argv[4] = data.trees
+		//   argv[5] = data.tre
+		//   argv[6] = data.values
+		//   argv[7] = data.bootstrap
+		var pb = new ProcessBuilder(
+				execPath.toString(),
+				workSettingsPath.getFileName().toString(),
+				workAlignmentPath.getFileName().toString(),
+				workTreeFilePath.getFileName().toString(),
+				workTreesPath.getFileName().toString(),
+				workOutTreePath.getFileName().toString(),
+				workValuesPath.getFileName().toString(),
+				workBootstrapPath.getFileName().toString())
+				.directory(workDir.toFile())
 				.redirectErrorStream(true);
 
 		this.pendingTreeInfoPath = treesPath;
 		this.pendingOutTreePath = picltreesPath;
+		this.pendingValuesPath = valuesPath;
+		this.pendingBootstrapPath = bootstrapPath;
+		this.pendingWorkDir = workDir;
+		this.pendingWorkTreeInfoPath = workTreesPath;
+		this.pendingWorkOutTreePath = workOutTreePath;
+		this.pendingWorkValuesPath = workValuesPath;
+		this.pendingWorkBootstrapPath = workBootstrapPath;
 		try {
 			currentProcess = pb.start();
 		} catch (IOException ex) {
 			error("Could not launch PICL", ex);
+			deleteDirectoryQuietly(workDir);
 			return;
 		}
 
@@ -1032,6 +1095,16 @@ public class DialogPresenter {
 			controller.getRunStatusLabel().setText("Finished");
 			controller.getStatusLabel().setText("PICL finished successfully");
 
+			try {
+				copyPiclOutputsFromWorkDir();
+				deleteDirectoryQuietly(pendingWorkDir);
+			} catch (IOException ex) {
+				controller.getRunStatusLabel().setText("Failed");
+				controller.getStatusLabel().setText("Could not copy PICL output files: " + ex.getMessage());
+				appendOutput("[copy error] " + ex.getMessage() + "\n");
+				return;
+			}
+
 			if (pendingTreeInfoPath != null
 				&& loadTreeFromFile(pendingTreeInfoPath)) {
 				controller.getMainTabPane().getSelectionModel().select(controller.getOutputTab());
@@ -1043,6 +1116,36 @@ public class DialogPresenter {
 		} else {
 			controller.getRunStatusLabel().setText("Failed (exit " + exitCode + ")");
 			controller.getStatusLabel().setText("PICL exited with code " + exitCode);
+			if (pendingWorkDir != null)
+				appendOutput("[temporary files kept in " + pendingWorkDir + "]\n");
+		}
+	}
+
+	private void copyPiclOutputsFromWorkDir() throws IOException {
+		copyIfPresent(pendingWorkTreeInfoPath, pendingTreeInfoPath);
+		copyIfPresent(pendingWorkOutTreePath, pendingOutTreePath);
+		copyIfPresent(pendingWorkValuesPath, pendingValuesPath);
+		copyIfPresent(pendingWorkBootstrapPath, pendingBootstrapPath);
+	}
+
+	private void copyIfPresent(Path source, Path target) throws IOException {
+		if (source != null && target != null && Files.exists(source)) {
+			if (target.getParent() != null)
+				Files.createDirectories(target.getParent());
+			Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+		}
+	}
+
+	private void deleteDirectoryQuietly(Path dir) {
+		if (dir == null || !Files.exists(dir)) return;
+		try (var paths = Files.walk(dir)) {
+			paths.sorted(Comparator.reverseOrder()).forEach(path -> {
+				try {
+					Files.deleteIfExists(path);
+				} catch (IOException ignored) {
+				}
+			});
+		} catch (IOException ignored) {
 		}
 	}
 
@@ -1051,27 +1154,22 @@ public class DialogPresenter {
 	// =================================================================
 
 	/**
-	 * Decides what file PICL should actually read as its alignment.
-	 * For Phylip input, returns the alignment unchanged. For FASTA,
-	 * parses the file and re-renders it as relaxed Phylip in the
-	 * system temp dir (with the same taxon names — PICL accepts long
-	 * names now, so no remapping is needed).
+	 * Writes the alignment file that PICL should actually read. For
+	 * Phylip input, this copies the alignment to {@code piclAlignmentPath}.
+	 * For FASTA input, it parses the file and re-renders it as relaxed
+	 * Phylip at that same local path.
 	 */
-	private Path prepareAlignmentForPicl(Path alignmentPath) throws IOException {
+	private void prepareAlignmentForPicl(Path alignmentPath, Path piclAlignmentPath) throws IOException {
 		var format = AlignmentFormat.detect(alignmentPath);
 		switch (format) {
-			case PHYLIP:
-				return alignmentPath;
-			case FASTA:
+			case PHYLIP ->
+					Files.copy(alignmentPath, piclAlignmentPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+			case FASTA -> {
 				var sequences = FastaParser.parseAligned(alignmentPath);
-				var tempPath = Files.createTempFile("picl-input-", ".phy");
-				tempPath.toFile().deleteOnExit();
-				PhylipWriter.write(tempPath, sequences);
-				return tempPath;
-			case UNKNOWN:
-			default:
-				throw new IOException("Unrecognised alignment format (not Phylip or FASTA): "
-									  + alignmentPath);
+				PhylipWriter.write(piclAlignmentPath, sequences);
+			}
+			case UNKNOWN -> throw new IOException("Unrecognised alignment format (not Phylip or FASTA): "
+												  + alignmentPath);
 		}
 	}
 
@@ -1229,9 +1327,9 @@ public class DialogPresenter {
 		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All files", "*"));
 		if (lastTreeFile != null && lastTreeFile.getParent() != null) {
 			chooser.setInitialDirectory(lastTreeFile.getParent().toFile());
-			chooser.setInitialFileName(lastTreeFile.toFile().getName());
+			chooser.setInitialFileName(lastTreeFile.toFile().getName().replaceFirst("(?<!^)\\.[^.]*$", ""));
 		} else {
-			chooser.setInitialFileName("output.trees");
+			chooser.setInitialFileName("output");
 		}
 		var file = chooser.showSaveDialog(window());
 		if (file == null) return;

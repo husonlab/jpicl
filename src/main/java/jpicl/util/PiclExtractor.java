@@ -53,13 +53,15 @@ public final class PiclExtractor {
 			}
 		}
 
-		var dev = Path.of("packaging", "native", key, name);
-		if (!Files.exists(dev))
-			System.err.println("no file");
-		if (Files.isExecutable(dev)) {
-			return dev;
+		var path = Path.of("packaging", "native", key, name);
+		if (!Files.exists(path))
+			path = Path.of("native", "picl", "src", "picl");
+		if (!Files.exists(path))
+			System.err.println("Can't find native picl executable: " + path);
+		if (Files.isExecutable(path)) {
+			return path;
 		}
-		throw new IllegalStateException("PICL executable not found or not executable: " + dev);
+		throw new IllegalStateException("PICL executable not found or not executable: " + path);
 	}
 
 	/**
