@@ -60,4 +60,6 @@ buildNumber.properties
 # https://github.com/takari/maven-wrapper#usage-without-binary-jar
 .mvn/wrapper/maven-wrapper.jar
 
-/packaging/native/
+# packaging/native/<target>/picl[.exe] holds the compiled PICL binaries that
+# build-picl.yml commits as the source of truth for dev mode (PiclExtractor)
+# and the installer build. They are tracked on purpose, so do NOT ignore them.
