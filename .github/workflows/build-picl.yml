@@ -7,6 +7,7 @@ name: Build picl binaries
 # which is the single source of truth read by:
 #   * dev mode           - jpicl.util.PiclExtractor (packaging/native/<key>/)
 #   * the installer build - husonlab/build-installers (source/packaging/native/)
+# NOTE: manual dispatch only — never runs automatically
 
 on:
   workflow_dispatch:
