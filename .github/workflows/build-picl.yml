@@ -1,0 +1,255 @@
+name: Build picl binaries
+
+# This workflow lives in the public husonlab/jpicl repository. The PICL C
+# sources are a git submodule at native/picl (github.com/lkubatko/PICL), so we
+# check this repository out with submodules and compile in place. The freshly
+# built per-platform binaries are committed back into packaging/native/<target>/,
+# which is the single source of truth read by:
+#   * dev mode           - jpicl.util.PiclExtractor (packaging/native/<key>/)
+#   * the installer build - husonlab/build-installers (source/packaging/native/)
+
+on:
+  workflow_dispatch:
+
+# Serialise runs so two builds can't race to push binaries into this repo.
+concurrency:
+  group: build-picl-commit
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Both macOS slices are built on the Apple Silicon runner.
+          # x86_64 is produced by clang cross-compile (-arch x86_64).
+          # Boost.Math is header-only, so cross-compiling the C++ wrapper
+          # against the (arch-independent) Homebrew Boost headers works.
+          # If you ever hit an arch problem, switch macos-x86_64 to a real
+          # Intel runner (e.g. macos-15-intel) and drop the -arch flag.
+          - target: macos-aarch64
+            runner: macos-latest
+            arch_flag: '-arch arm64'
+            binary: picl
+          - target: macos-x86_64
+            runner: macos-latest
+            arch_flag: '-arch x86_64'
+            binary: picl
+          - target: linux-x86_64
+            runner: ubuntu-22.04
+            arch_flag: ''
+            binary: picl
+          - target: windows-x86_64
+            runner: windows-2025
+            arch_flag: ''
+            binary: picl.exe
+
+    steps:
+      # The PICL C sources live in the native/picl submodule of this repository.
+      - name: Check out this repository (with submodules)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Check PICL source location
+        shell: bash
+        run: |
+          cd native/picl/src
+          test -f main.c
+          # PICL now needs a C++ Bessel wrapper (Boost on macOS, libstdc++'s
+          # std::cyl_bessel_k on Linux/Windows). Make sure both are present.
+          test -f bessel_wrapper.cpp
+          test -f bessel_wrapper_macos.cpp
+          echo "C sources:"
+          find . -maxdepth 1 -type f -name "*.c" | sort
+          echo "C++ sources:"
+          find . -maxdepth 1 -type f -name "*.cpp" | sort
+
+      # ---------- macOS: install Boost (headers only are needed) ----------
+      - name: Install Boost (macOS)
+        if: startsWith(matrix.target, 'macos-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install boost
+          echo "Boost prefix: $(brew --prefix boost)"
+
+      # ---------- macOS ----------
+      # libc++ on macOS does NOT implement the C++17 std::cyl_bessel_k, so the
+      # macOS wrapper uses boost::math::cyl_bessel_k (header-only). We compile
+      # main.c as C, the wrapper as C++17 with the Boost include path, then
+      # link with clang++ so the C++ runtime (system libc++) is pulled in.
+      - name: Build picl (macOS)
+        if: startsWith(matrix.target, 'macos-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd native/picl/src
+          BOOST_INC="$(brew --prefix boost)/include"
+          echo "Using Boost headers at: $BOOST_INC"
+          clang   -O2 ${{ matrix.arch_flag }} -mmacosx-version-min=11.0 \
+                  -c main.c -o main.o
+          clang++ -O2 ${{ matrix.arch_flag }} -mmacosx-version-min=11.0 \
+                  -std=c++17 -I"$BOOST_INC" \
+                  -c bessel_wrapper_macos.cpp -o bessel_wrapper.o
+          clang++ -O2 ${{ matrix.arch_flag }} -mmacosx-version-min=11.0 \
+                  main.o bessel_wrapper.o -lm -o ${{ matrix.binary }}
+          file ${{ matrix.binary }}
+          # Sanity: there must be no Boost (or other non-system) dynamic dep.
+          otool -L ${{ matrix.binary }} || true
+
+      # ---------- Linux ----------
+      # libstdc++ provides std::cyl_bessel_k, so no Boost is needed here.
+      # Static-link the C++ runtime so the binary depends only on libc/libm
+      # and stays self-contained inside the JAR / app image.
+      - name: Build picl (Linux)
+        if: matrix.target == 'linux-x86_64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd native/picl/src
+          gcc -O2 -c main.c -o main.o
+          g++ -O2 -std=c++17 -c bessel_wrapper.cpp -o bessel_wrapper.o
+          g++ -static-libgcc -static-libstdc++ \
+              main.o bessel_wrapper.o -lm -o ${{ matrix.binary }}
+          file ${{ matrix.binary }}
+          echo "Runtime deps (should be libc/libm only):"
+          ldd ${{ matrix.binary }} || true
+
+      # ---------- Windows ----------
+      - name: Set up MinGW
+        if: matrix.target == 'windows-x86_64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-boost
+
+      # IMPORTANT: use the *Boost* wrapper on Windows, NOT bessel_wrapper.cpp.
+      # MinGW-w64's libstdc++ is frequently built WITHOUT the optional C++17
+      # special math functions, so std::cyl_bessel_k is undeclared and
+      # bessel_wrapper.cpp fails to compile with:
+      #     error: 'cyl_bessel_k' is not a member of 'std'
+      # Boost.Math is header-only and works regardless of the stdlib config.
+      # (The file is named *_macos.cpp but is plain Boost code with nothing
+      #  macOS-specific.)
+      #
+      # Link fully static (-static) so picl.exe does NOT depend on
+      # libstdc++-6.dll / libgcc_s_seh-1.dll / libwinpthread-1.dll, which are
+      # absent on a clean end-user machine and are not bundled by jpackage.
+      - name: Build picl (Windows)
+        if: matrix.target == 'windows-x86_64'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cd native/picl/src
+          # mingw-w64-x86_64-boost puts headers on the default include path
+          # (/mingw64/include), so no -I is required.
+          gcc -O2 -c main.c -o main.o
+          g++ -O2 -std=c++17 -c bessel_wrapper_macos.cpp -o bessel_wrapper.o
+          g++ -static -static-libgcc -static-libstdc++ \
+              main.o bessel_wrapper.o -lm -o ${{ matrix.binary }}
+          file ${{ matrix.binary }}
+          echo "DLL deps (should list only Windows system DLLs, e.g. KERNEL32):"
+          ldd ${{ matrix.binary }} || true
+
+      # ---------- Upload per-platform artifact ----------
+      - name: Upload binary
+        uses: actions/upload-artifact@v5
+        with:
+          name: picl-${{ matrix.target }}
+          path: native/picl/src/${{ matrix.binary }}
+          if-no-files-found: error
+          retention-days: 7
+
+  bundle:
+    name: Bundle all binaries
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write   # allow committing the binaries back into this repo
+
+    steps:
+      # Check out THIS repo so we can commit the binaries into it. The native
+      # submodule is NOT needed here (we only read its recorded SHA below), so
+      # skip it for a faster checkout.
+      - name: Check out this repository
+        uses: actions/checkout@v5
+
+      - name: Download all per-platform artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: staging
+
+      - name: Reorganize into resource layout
+        shell: bash
+        run: |
+          mkdir -p out/macos-aarch64 out/macos-x86_64 out/linux-x86_64 out/windows-x86_64
+          cp staging/picl-macos-aarch64/picl      out/macos-aarch64/picl
+          cp staging/picl-macos-x86_64/picl       out/macos-x86_64/picl
+          cp staging/picl-linux-x86_64/picl       out/linux-x86_64/picl
+          cp staging/picl-windows-x86_64/picl.exe out/windows-x86_64/picl.exe
+
+          chmod +x out/macos-aarch64/picl out/macos-x86_64/picl out/linux-x86_64/picl
+          ls -lR out
+
+      - name: Upload combined bundle
+        uses: actions/upload-artifact@v5
+        with:
+          name: picl-binaries-all
+          path: out/
+          if-no-files-found: error
+          retention-days: 30
+
+      # ----- Commit the fresh binaries into packaging/native -----
+      # This is the single source of truth the installer reads from
+      # ( source/packaging/native/<target>/ in build-installers ) and the
+      # path dev-mode PiclExtractor uses ( packaging/native/<key>/ ).
+      - name: Commit binaries into packaging/native
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for t in macos-aarch64 macos-x86_64 linux-x86_64; do
+            mkdir -p "packaging/native/$t"
+            cp "out/$t/picl" "packaging/native/$t/picl"
+            chmod +x "packaging/native/$t/picl"
+          done
+          mkdir -p packaging/native/windows-x86_64
+          cp out/windows-x86_64/picl.exe packaging/native/windows-x86_64/picl.exe
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add packaging/native
+          if git diff --cached --quiet; then
+            echo "Binaries unchanged - nothing to commit."
+            exit 0
+          fi
+
+          JPICL_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+          PICL_SHA=$(git rev-parse 'HEAD:native/picl' 2>/dev/null | cut -c1-12 || echo unknown)
+
+          git commit \
+            -m "Update bundled picl binaries" \
+            -m "Built by ${GITHUB_WORKFLOW} run #${GITHUB_RUN_NUMBER} (${GITHUB_RUN_ID})." \
+            -m "Source jpicl: ${JPICL_SHA}; PICL submodule: ${PICL_SHA}."
+
+          # Push to the branch this workflow ran on; rebase if it moved meanwhile.
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              echo "Pushed updated binaries to ${GITHUB_REF_NAME}."
+              break
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "Push failed after 3 attempts." >&2
+              exit 1
+            fi
+            echo "Push rejected (attempt $attempt) - rebasing on latest and retrying."
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+          done
