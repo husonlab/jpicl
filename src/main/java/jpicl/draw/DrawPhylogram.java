@@ -38,6 +38,10 @@ import java.util.function.DoubleFunction;
  */
 public class DrawPhylogram {
 	public static Group draw(TreeNode root, double width, double height) {
+		return draw(root, width, height, true);
+	}
+
+	public static Group draw(TreeNode root, double width, double height, boolean showConfidence) {
 		width -= 100;
 		var counter = new LongAdder();
 		var maxLabelLength = new AtomicInteger(0);
@@ -86,9 +90,9 @@ public class DrawPhylogram {
 				label.setLayoutY(vY - label.getFont().getSize() / 2);
 				nodeLabelGroup.getChildren().add(label);
 			}
-			if (!v.isLeaf() && v.getParent() != null && v.getConfidence() >= 0) {
-				var label = new Label("%.1f".formatted(v.getConfidence()));
-				label.getStyleClass().add("tree-label");
+			if (showConfidence && !v.isLeaf() && v.getParent() != null && v.getConfidence() >= 0) {
+				var label = new Label("%.0f".formatted(v.getConfidence()));
+				label.getStyleClass().addAll("tree-label", "tree-support-label");
 				label.setLayoutX(vX + 3);
 				label.setLayoutY(vY + 3);
 				edgeLabelGroup.getChildren().add(label);

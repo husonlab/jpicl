@@ -70,6 +70,8 @@
                             <CheckMenuItem fx:id="fullScreenMenuItem" accelerator="Shortcut+Shift+F"
                                            text="Full Screen"/>
                             <CheckMenuItem fx:id="darkModeMenuItem" text="Dark Mode"/>
+                            <CheckMenuItem fx:id="showBootstrapSupportMenuItem" selected="true"
+                                           text="Show Bootstrap Support"/>
                             <SeparatorMenuItem/>
                             <RadioMenuItem fx:id="settingsTabMenuItem" accelerator="Shortcut+1" text="Settings">
                                 <toggleGroup>
@@ -398,13 +400,10 @@
                                             <ColumnConstraints hgrow="ALWAYS"/>
                                         </columnConstraints>
 
-                                        <Label text="Bootstrap replicates" GridPane.columnIndex="0"
+                                        <Label text="Bootstrap type" GridPane.columnIndex="0"
                                                GridPane.rowIndex="0"/>
-                                        <HBox alignment="CENTER_LEFT" spacing="6.0" GridPane.columnIndex="1"
-                                              GridPane.rowIndex="0">
-                                            <TextField fx:id="bootstrapReplicatesTextField" prefColumnCount="10"/>
-                                            <Label fx:id="bootstrapReplicatesHintLabel" text="0 = none"/>
-                                        </HBox>
+                                        <ChoiceBox fx:id="bootstrapTypeChoiceBox" maxWidth="Infinity"
+                                                   GridPane.columnIndex="1" GridPane.rowIndex="0"/>
 
                                         <Label text="Random seed 1" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
                                         <HBox alignment="CENTER_LEFT" spacing="6.0" GridPane.columnIndex="3"
@@ -413,9 +412,13 @@
                                             <Button fx:id="randomiseSeed1Button" text="Randomise"/>
                                         </HBox>
 
-                                        <Label text="Verbose output" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
-                                        <CheckBox fx:id="verboseOutputCheckBox" text="Print debug detail"
-                                                  GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                                        <Label text="Bootstrap replicates" GridPane.columnIndex="0"
+                                               GridPane.rowIndex="1"/>
+                                        <HBox alignment="CENTER_LEFT" spacing="6.0" GridPane.columnIndex="1"
+                                              GridPane.rowIndex="1">
+                                            <TextField fx:id="bootstrapReplicatesTextField" prefColumnCount="10"/>
+                                            <Label fx:id="bootstrapReplicatesHintLabel" text="Nboot (replicates)"/>
+                                        </HBox>
 
                                         <Label text="Random seed 2" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
                                         <HBox alignment="CENTER_LEFT" spacing="6.0" GridPane.columnIndex="3"
@@ -423,7 +426,12 @@
                                             <TextField fx:id="randomSeed2TextField" prefColumnCount="12"/>
                                             <Button fx:id="randomiseSeed2Button" text="Randomise"/>
                                         </HBox>
+
+                                        <Label text="Verbose output" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                                        <CheckBox fx:id="verboseOutputCheckBox" text="Print debug detail"
+                                                  GridPane.columnIndex="1" GridPane.rowIndex="2"/>
                                         <rowConstraints>
+                                            <RowConstraints/>
                                             <RowConstraints/>
                                             <RowConstraints/>
                                         </rowConstraints>

@@ -63,6 +63,12 @@
     -fx-fill: white;
 }
 
+/* bootstrap support values drawn next to internal edges */
+.tree-support-label {
+    -fx-text-fill: #66ccff;
+    -fx-font-size: 10px;
+}
+
 /* ------------------------------------------------------------------
    LogView styling
    ------------------------------------------------------------------ */

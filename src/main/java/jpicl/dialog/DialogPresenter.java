@@ -138,6 +138,13 @@ public class DialogPresenter {
 	 * Last successfully parsed tree root, retained so we can redraw on resize.
 	 */
 	private TreeNode lastDrawnTreeRoot;
+
+	/**
+	 * Whether bootstrap support values are drawn next to internal edges.
+	 * Toggled from the View menu; support is computed whenever a tree with a
+	 * sibling tree-bootstrap file is drawn.
+	 */
+	private boolean showBootstrapSupport = true;
 	// -----------------------------------------------------------------
 	//  Construction — does ALL the wiring
 	// -----------------------------------------------------------------
@@ -265,6 +272,13 @@ public class DialogPresenter {
 
 		var darkModeMenuItem = controller.getDarkModeMenuItem();
 		darkModeMenuItem.setOnAction(e -> applyDarkMode(scene, darkModeMenuItem.isSelected()));
+
+		var showSupportMenuItem = controller.getShowBootstrapSupportMenuItem();
+		showSupportMenuItem.setSelected(showBootstrapSupport);
+		showSupportMenuItem.setOnAction(e -> {
+			showBootstrapSupport = showSupportMenuItem.isSelected();
+			redrawTree();
+		});
 
 		// Windows section at the bottom of View.
 		Window.getWindows().addListener((ListChangeListener<Window>) c ->
@@ -456,6 +470,9 @@ public class DialogPresenter {
 
 		treeSearchMethodChoiceBox.setItems(
 				FXCollections.observableArrayList(Settings.TreeSearchMethod.values()));
+
+		controller.getBootstrapTypeChoiceBox().setItems(
+				FXCollections.observableArrayList(Settings.BootstrapType.values()));
 	}
 
 	// =================================================================
@@ -526,6 +543,12 @@ public class DialogPresenter {
 				.isNotEqualTo(Settings.TreeSearchMethod.SA_NNI);
 		controller.getCoolingRateTextField().disableProperty().bind(notSA);
 		controller.getCoolingRateHintLabel().disableProperty().bind(notSA);
+
+		// The replicate count (Nboot) matters only when a bootstrap type is selected.
+		var noBootstrap = controller.getBootstrapTypeChoiceBox().valueProperty()
+				.isEqualTo(Settings.BootstrapType.NONE);
+		controller.getBootstrapReplicatesTextField().disableProperty().bind(noBootstrap);
+		controller.getBootstrapReplicatesHintLabel().disableProperty().bind(noBootstrap);
 	}
 
 	// =================================================================
@@ -629,6 +652,7 @@ public class DialogPresenter {
 		controller.getOptSlopeTextField().setText(Double.toString(s.getOptSlope()));
 		controller.getCoolingRateTextField().setText(Double.toString(s.getCoolingRate()));
 
+		controller.getBootstrapTypeChoiceBox().setValue(s.getBootstrapType());
 		controller.getBootstrapReplicatesTextField().setText(Integer.toString(s.getBootstrapReplicates()));
 		controller.getVerboseOutputCheckBox().setSelected(s.isVerboseOutput());
 		controller.getRandomSeed1TextField().setText(Long.toString(s.getRandomSeed1()));
@@ -669,6 +693,7 @@ public class DialogPresenter {
 		s.setOptSlope(parseDouble(controller.getOptSlopeTextField(), s.getOptSlope()));
 		s.setCoolingRate(parseDouble(controller.getCoolingRateTextField(), s.getCoolingRate()));
 
+		s.setBootstrapType(controller.getBootstrapTypeChoiceBox().getValue());
 		s.setBootstrapReplicates(parseInt(controller.getBootstrapReplicatesTextField(),
 				s.getBootstrapReplicates()));
 		s.setVerboseOutput(controller.getVerboseOutputCheckBox().isSelected());
@@ -1214,6 +1239,7 @@ public class DialogPresenter {
 		label.setLayoutY(20);
 		controller.getTreeCanvasPane().getChildren().setAll(label);
 		lastDrawnTreeRoot = null;
+		updateBootstrapSupportMenuState();
 	}
 
 	private void redrawTree() {
@@ -1223,7 +1249,7 @@ public class DialogPresenter {
 		var h = pane.getHeight();
 		if (w <= 40 || h <= 40) return;
 		var pad = 20.0;
-		var group = DrawPhylogram.draw(lastDrawnTreeRoot, w - 2 * pad, h - 2 * pad);
+		var group = DrawPhylogram.draw(lastDrawnTreeRoot, w - 2 * pad, h - 2 * pad, showBootstrapSupport);
 		group.setLayoutX(pad);
 		group.setLayoutY(pad);
 		pane.getChildren().setAll(group);
@@ -1246,6 +1272,8 @@ public class DialogPresenter {
 			var semi = content.indexOf(';');
 			var newick = (semi >= 0) ? content.substring(0, semi + 1) : content;
 			lastDrawnTreeRoot = new NewickParser(newick).parse();
+			annotateBootstrapSupport(treeFile);
+			updateBootstrapSupportMenuState();
 			pathLabel.setText(treeFile.toString());
 			redrawTree();
 			return true;
@@ -1256,6 +1284,51 @@ public class DialogPresenter {
 			showTreePlaceholder("Could not parse tree: " + ex.getMessage());
 			return false;
 		}
+	}
+
+	/**
+	 * If {@code treeFile} has a sibling tree-bootstrap file (the {@code .bootstrap}
+	 * replicates written by {@code Boot_type: 1}), computes Felsenstein support for
+	 * each internal edge of {@link #lastDrawnTreeRoot} and stores it on the nodes so
+	 * {@link DrawPhylogram} can draw it. No-op for branch-length bootstrap output or
+	 * when no bootstrap file is present.
+	 */
+	private void annotateBootstrapSupport(Path treeFile) {
+		if (lastDrawnTreeRoot == null) return;
+		var bootstrapFile = Path.of(OutputFiles.deriveBootstrapPath(treeFile.toString()));
+		if (!Files.isReadable(bootstrapFile) || !BootstrapSupport.looksLikeTreeFile(bootstrapFile))
+			return;
+		try {
+			var replicates = BootstrapSupport.readReplicateTrees(bootstrapFile);
+			if (replicates.isEmpty()) return;
+			int used = BootstrapSupport.annotate(lastDrawnTreeRoot, replicates);
+			if (used > 0)
+				controller.getStatusLabel().setText(
+						"Bootstrap support computed from " + used + " replicate tree(s)");
+		} catch (IOException ignored) {
+			// support is a nicety; a bad bootstrap file must not stop the tree drawing
+		}
+	}
+
+	/**
+	 * True if the current tree carries at least one bootstrap support value.
+	 */
+	private boolean currentTreeHasSupport() {
+		if (lastDrawnTreeRoot == null) return false;
+		var found = new boolean[]{false};
+		lastDrawnTreeRoot.preOrderTraversal(v -> {
+			if (!v.isLeaf() && v.getParent() != null && v.getConfidence() >= 0) found[0] = true;
+		});
+		return found[0];
+	}
+
+	/**
+	 * Enables the "Show Bootstrap Support" toggle only when the current tree
+	 * actually has support values (i.e. a tree bootstrap was run); otherwise the
+	 * item has nothing to act on and is disabled.
+	 */
+	private void updateBootstrapSupportMenuState() {
+		controller.getShowBootstrapSupportMenuItem().setDisable(!currentTreeHasSupport());
 	}
 
 	public String getTreeFromFile(Path treeFile) {

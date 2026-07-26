@@ -24,7 +24,6 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
-import javafx.scene.shape.SVGPath;
 import jpicl.main.Version;
 import jpicl.util.TextFieldUtils;
 
@@ -48,6 +47,8 @@ public class DialogController {
 	private Button lineagesFromDataButton;
 	@FXML
 	private Button autoDetectSpeciesByPrefixButton;
+	@FXML
+	private ChoiceBox<Settings.BootstrapType> bootstrapTypeChoiceBox;
 	@FXML
 	private Label bootstrapReplicatesHintLabel;
 	@FXML
@@ -259,6 +260,8 @@ public class DialogController {
 	@FXML
 	private CheckMenuItem darkModeMenuItem;
 	@FXML
+	private CheckMenuItem showBootstrapSupportMenuItem;
+	@FXML
 	private ToggleGroup tabsToggleGroup;
 	@FXML
 	private RadioMenuItem settingsTabMenuItem;
@@ -316,13 +319,6 @@ public class DialogController {
 		TextFieldUtils.setInteger(0, Integer.MAX_VALUE, testIncrTextField);
 		TextFieldUtils.setDouble(0, Double.MAX_VALUE, coolingRateTextField);
 
-		var svg = new SVGPath();
-		svg.setContent("M5 20h14v-2H5v2zm7-18l-5.5 5.5 1.42 1.42L11 5.84V16h2V5.84l3.08 3.08 1.42-1.42L12 2z");
-		svg.setScaleY(0.8);
-		svg.setScaleX(0.6);
-		svg.setScaleY(0.6);
-		exportMenuButton.setGraphic(svg);
-		exportMenuButton.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
 	}
 
 
@@ -343,11 +339,20 @@ public class DialogController {
 				1 = all sites are included; gapped sites are currently ignored at the quartet level
 				"""));
 
+		bootstrapTypeChoiceBox.setTooltip(new Tooltip("""
+				Boot_type:
+				0 = None: no bootstrapping.
+				1 = Tree bootstrap: a tree is re-estimated from each replicate
+				    (simulated annealing), giving node-support values.
+				2 = Branch-length bootstrap on a fixed tree: speciation times are
+				    re-estimated per replicate (confidence intervals); requires Opt_bl ≠ 0.
+				Either option writes replicate results to boots.dat.
+				"""));
+
 		bootstrapReplicatesTextField.setTooltip(new Tooltip("""
-				Bootstrap:
-				If 0, no bootstrapping is done.
-				If >0, specifies the number of bootstrap replicates used to obtain confidence intervals.
-				Opt_bl must not be 0 when bootstrapping is requested.
+				Nboot:
+				Number of bootstrap replicates for the selected bootstrap type.
+				Used only when the bootstrap type is not None.
 				"""));
 
 		thetaTextField.setTooltip(new Tooltip("""
@@ -498,6 +503,10 @@ public class DialogController {
 
 	public Button getAutoDetectSpeciesByPrefixButton() {
 		return autoDetectSpeciesByPrefixButton;
+	}
+
+	public ChoiceBox<Settings.BootstrapType> getBootstrapTypeChoiceBox() {
+		return bootstrapTypeChoiceBox;
 	}
 
 	public Label getBootstrapReplicatesHintLabel() {
@@ -898,6 +907,10 @@ public class DialogController {
 
 	public CheckMenuItem getDarkModeMenuItem() {
 		return darkModeMenuItem;
+	}
+
+	public CheckMenuItem getShowBootstrapSupportMenuItem() {
+		return showBootstrapSupportMenuItem;
 	}
 
 	public ToggleGroup getTabsToggleGroup() {

@@ -154,6 +154,51 @@ public class Settings {
 	}
 
 	/**
+	 * Bootstrap procedure (PICL {@code Boot_type}). Introduced in PICL 1.0.5,
+	 * replacing the older single {@code Bootstrap: <int>} option.
+	 * <ul>
+	 *   <li>0 = no bootstrapping.</li>
+	 *   <li>1 = tree bootstrap: a tree is re-estimated from each bootstrap
+	 *       sample (simulated annealing), giving node-support values.</li>
+	 *   <li>2 = branch-length bootstrap on a fixed tree: speciation times are
+	 *       re-estimated per replicate, giving confidence intervals. Requires
+	 *       Opt_bl &ne; 0. This matches the behaviour of the old option.</li>
+	 * </ul>
+	 * Either option writes its replicate results to {@code boots.dat}.
+	 */
+	public enum BootstrapType {
+		NONE(0, "None"),
+		TREE(1, "Tree bootstrap (node support)"),
+		BRANCH_LENGTH(2, "Branch-length bootstrap (fixed tree)");
+
+		private final int code;
+		private final String displayName;
+
+		BootstrapType(int code, String displayName) {
+			this.code = code;
+			this.displayName = displayName;
+		}
+
+		public int code() {
+			return code;
+		}
+
+		public String displayName() {
+			return displayName;
+		}
+
+		@Override
+		public String toString() {
+			return displayName;
+		}
+
+		public static BootstrapType fromCode(int code) {
+			for (var v : values()) if (v.code == code) return v;
+			throw new IllegalArgumentException("Unknown BootstrapType code: " + code);
+		}
+	}
+
+	/**
 	 * Backs the two RadioButtons in the startingTreeToggleGroup.
 	 */
 	public enum StartingTreeSource {READ_FROM_FILE, GENERATE_RANDOM}
@@ -227,7 +272,8 @@ public class Settings {
 	private double optSlope = -0.01;
 	private double coolingRate = 0.005;
 
-	private int bootstrapReplicates = 0;
+	private BootstrapType bootstrapType = BootstrapType.NONE;
+	private int bootstrapReplicates = 0;   // Nboot
 	private boolean verboseOutput = true;
 	private long randomSeed1 = 12345L;
 	private long randomSeed2 = 67890L;
@@ -396,6 +442,14 @@ public class Settings {
 		this.coolingRate = v;
 	}
 
+	public BootstrapType getBootstrapType() {
+		return bootstrapType;
+	}
+
+	public void setBootstrapType(BootstrapType v) {
+		this.bootstrapType = v;
+	}
+
 	public int getBootstrapReplicates() {
 		return bootstrapReplicates;
 	}
@@ -443,7 +497,8 @@ public class Settings {
 	//
 	//      Model: <int>
 	//      Gaps: <0|1>
-	//      Bootstrap: <int>
+	//      Boot_type: <0|1|2>          0 = none, 1 = tree, 2 = branch-length (fixed tree)
+	//      Nboot: <int>                number of bootstrap replicates
 	//      Theta: <double>
 	//      Lambda: <double>            population-size param (Model 5; MSC-JC69)
 	//      Rate_param: <double>
@@ -473,7 +528,14 @@ public class Settings {
 	public static final class Key {
 		public static final String MODEL = "Model";
 		public static final String GAPS = "Gaps";          // 1 = include all sites
-		public static final String BOOTSTRAP = "Bootstrap";
+		public static final String BOOT_TYPE = "Boot_type";    // 0 = none, 1 = tree, 2 = branch-length (fixed tree)
+		public static final String NBOOT = "Nboot";        // number of bootstrap replicates
+		/**
+		 * Legacy key from PICL &lt; 1.0.5, when a single {@code Bootstrap: <int>}
+		 * combined type and replicate count. Recognised on read only so old
+		 * settings files still load; never written.
+		 */
+		public static final String BOOTSTRAP_LEGACY = "Bootstrap";
 		public static final String THETA = "Theta";
 		public static final String LAMBDA = "Lambda";        // population-size param (Model 5)
 		public static final String RATE_PARAM = "Rate_param";    // gamma rate
@@ -504,7 +566,7 @@ public class Settings {
 	 * the missing values silently filled with defaults.
 	 */
 	private static final List<String> KNOWN_KEYS = List.of(
-			Key.MODEL, Key.GAPS, Key.BOOTSTRAP, Key.THETA, Key.LAMBDA, Key.RATE_PARAM,
+			Key.MODEL, Key.GAPS, Key.BOOT_TYPE, Key.NBOOT, Key.THETA, Key.LAMBDA, Key.RATE_PARAM,
 			Key.RANDOM_TREE, Key.OPT_BL, Key.USER_BL, Key.NUM_OPT, Key.SEED1, Key.SEED2,
 			Key.NUM_CAT, Key.TREE_SEARCH, Key.NUM_ITER, Key.MULTI_ITER, Key.PROB_BOUND,
 			Key.TEST_INCR, Key.OPT_SLOPE, Key.BETA, Key.VERBOSE);
@@ -602,6 +664,18 @@ public class Settings {
 			i++;
 		}
 
+		// ----- legacy "Bootstrap" key (PICL < 1.0.5) -----
+		if (seenKeys.contains(Key.BOOTSTRAP_LEGACY)) {
+			// It was mapped onto Boot_type/Nboot above; treat those as present so
+			// they aren't reported as "missing", and explain the reinterpretation.
+			seenKeys.add(Key.BOOT_TYPE);
+			seenKeys.add(Key.NBOOT);
+			warnings.add("This file uses the old “Bootstrap” setting (PICL < 1.0.5). It was read as "
+						 + settings.bootstrapReplicates + " replicate(s) of a "
+						 + BootstrapType.BRANCH_LENGTH.displayName().toLowerCase()
+						 + "; please review the Boot_type and Nboot values before running.");
+		}
+
 		// ----- older-version detection: known keys that never appeared -----
 		if (applied > 0) {
 			var missing = new ArrayList<String>();
@@ -670,7 +744,15 @@ public class Settings {
 		switch (key) {
 			case Key.MODEL -> s.model = Model.fromCode(Integer.parseInt(value));
 			case Key.GAPS -> s.includeAllSites = parseBool01(value);
-			case Key.BOOTSTRAP -> s.bootstrapReplicates = Integer.parseInt(value);
+			case Key.BOOT_TYPE -> s.bootstrapType = BootstrapType.fromCode(Integer.parseInt(value));
+			case Key.NBOOT -> s.bootstrapReplicates = Integer.parseInt(value);
+			case Key.BOOTSTRAP_LEGACY -> {
+				// Pre-1.0.5 files had a single "Bootstrap: <int>", which was a
+				// branch-length bootstrap on a fixed tree. Map it onto the new pair.
+				int n = Integer.parseInt(value);
+				s.bootstrapReplicates = n;
+				s.bootstrapType = (n > 0) ? BootstrapType.BRANCH_LENGTH : BootstrapType.NONE;
+			}
 			case Key.THETA -> s.theta = Double.parseDouble(value);
 			case Key.LAMBDA -> s.lambda = Double.parseDouble(value);
 			case Key.RATE_PARAM -> s.gammaRate = Double.parseDouble(value);
@@ -718,7 +800,8 @@ public class Settings {
 		// header — order matches PICL's expected layout
 		kv(w, Key.MODEL, Integer.toString(model.code()));
 		kv(w, Key.GAPS, bool01(includeAllSites));
-		kv(w, Key.BOOTSTRAP, Integer.toString(bootstrapReplicates));
+		kv(w, Key.BOOT_TYPE, Integer.toString(bootstrapType.code()));
+		kv(w, Key.NBOOT, Integer.toString(bootstrapReplicates));   // MUST follow Boot_type — PICL reads it positionally
 		kv(w, Key.THETA, Double.toString(theta));
 		kv(w, Key.LAMBDA, Double.toString(lambda));   // MUST follow Theta — PICL reads it positionally right after Theta
 		kv(w, Key.RATE_PARAM, Double.toString(gammaRate));
@@ -810,7 +893,24 @@ public class Settings {
 		if (treeSearchIterations < 1) problems.add("Tree-search iterations must be ≥ 1.");
 		if (treeSearchMethod.usesCoolingRate() && coolingRate <= 0)
 			problems.add("Cooling rate β must be > 0 when using simulated annealing.");
-		if (bootstrapReplicates < 0) problems.add("Bootstrap replicates cannot be negative.");
+		if (bootstrapReplicates < 0) problems.add("Number of bootstrap replicates (Nboot) cannot be negative.");
+		if (bootstrapType != BootstrapType.NONE && bootstrapReplicates < 1)
+			problems.add("Select at least one bootstrap replicate (Nboot) for “"
+						 + bootstrapType.displayName() + "”, or set the bootstrap type to None.");
+		if (bootstrapType == BootstrapType.TREE && bootstrapReplicates > 0
+			&& treeSearchMethod != TreeSearchMethod.SA_NNI)
+			problems.add("Tree bootstrap re-estimates a tree per replicate, so the tree search must be “"
+						 + TreeSearchMethod.SA_NNI.displayName() + "” (Tree_search = 2).");
+		if (bootstrapType == BootstrapType.BRANCH_LENGTH && bootstrapReplicates > 0) {
+			if (branchLengthMethod == BranchLengthMethod.NONE)
+				problems.add("Branch-length bootstrap requires a branch-length optimisation method (Opt_bl ≠ 0).");
+			if (treeSearchMethod != TreeSearchMethod.NONE)
+				problems.add("Branch-length bootstrap runs on a fixed tree, so the tree search must be “"
+							 + TreeSearchMethod.NONE.displayName() + "” (Tree_search = 0).");
+			if (startingTreeSource != StartingTreeSource.READ_FROM_FILE)
+				problems.add("Branch-length bootstrap needs the tree of interest: set the starting tree to "
+							 + "“Read from file” and provide the tree.");
+		}
 		if (startingTreeSource == StartingTreeSource.READ_FROM_FILE
 			&& (treeFile == null || treeFile.isBlank()))
 			problems.add("Tree file is empty but starting tree is set to read from file.");
