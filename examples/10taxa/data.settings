@@ -1,7 +1,7 @@
 Model: 1
 Gaps: 1
 Boot_type: 1
-Nboot: 10
+Nboot: 5
 Theta: 0.002
 Lambda: 300.0
 Rate_param: 1.0

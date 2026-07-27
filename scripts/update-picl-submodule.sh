@@ -55,3 +55,4 @@ echo "Submodule updated successfully."
 echo
 echo "To publish:"
 echo "    git push origin main"
+echo "then run the *build picl binaries* workflow before releasing"
